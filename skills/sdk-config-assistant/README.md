@@ -36,9 +36,11 @@ If you get stuck or a signal won't validate, log in to the Acoustic Support Port
 - **Cowork only.** The skill only works in Claude Cowork — it relies on the Claude in Chrome browser tool, which isn't available on other Claude surfaces.
 - **Install the Chrome extension for Claude** from the Chrome Web Store, make sure it's enabled and signed in to your Anthropic account, and connect it to the tab you want inspected. Other browsers aren't supported.
 - **Tampermonkey** (Chrome extension) is recommended but not required — it's the easiest way to inject and test the generated SDK. A no-extension alternative (Chrome DevTools Overrides) is also documented in the test guide the skill produces.
+- **Acoustic Signal Validator** (recommended): [install from the Chrome Web Store](https://chromewebstore.google.com/detail/cdoagpafcllkikfefplfgmabakmpceck). It shows whether each signal passes the schema while you test, which makes the validation step quicker. See [Validating signals with Acoustic Signal Validator](#validating-signals-with-acoustic-signal-validator) below.
 - **A folder must be added before the skill will start** — it's where website profiles are saved so they persist between sessions. Without one, the skill blocks at the storage step. Two ways to provide it:
   - **Recommended — a Project.** Create a Project (for example `SDK config`), add a folder to the Project's context, and run the skill from sessions inside it. Every session in the Project sees the same profiles, so you set this up once.
   - **This session only.** Add a folder to the current session context; the next session will ask again.
+- **What goes in the folder.** One subfolder per skill, and one folder per website named after its hostname: `sdk-config-assistant/<host>/` (the generated SDK, review and test guide), `sdk-config-assistant/profiles/` (saved website profiles), and `sdk-config-coding/<host>/` (sites handed to the coding assistant). A folder used by an earlier version (`SDK-config-assistant/outputs/…`, `SDK-config-coding/sites/…`) is moved into this layout automatically the next time the skill starts. Nothing is deleted or overwritten.
 
 ## Getting ready
 
@@ -61,9 +63,31 @@ If you have a staging domain, note it too — the skill uses it to safely trigge
 3. Generates code for every signal the site supports. A signal is skipped only when the site has no matching functionality — no search box, no cart, no product pages, no media — and the reason is recorded in the profile.
 4. Has you inject the SDK via Tampermonkey (or DevTools Override) and validate each signal fires with correct data.
 5. For any signal with an issue, applies a correction and has you retest — up to two correction attempts per signal (three test passes total).
-6. Any signal still failing after that is escalated: greyed out, excluded from the final config, and flagged for Acoustic Services follow-up.
+6. Any signal still failing after that is escalated: greyed out in the validation matrix and flagged in the implementation review. Its code from the last correction attempt stays in the SDK but should be treated as not working. You can hand it to the coding assistant to fix (step 8) or ask Acoustic Services for help.
 7. Outputs the final files, then offers a deployment choice on every tier — hand the config files over for the customer to host themselves (recommended), or upload to the Media Gallery (Connect CMS) for CDN delivery.
-8. Optionally hands the SDK off to the sdk-config-coding skill (same plugin, Claude Code only) at the end of the session (**Use coding assistant**, next to Close session). It copies the SDK, in test mode, and its report to `SDK-config-coding/sites/<hostname>/` inside the added folder. The coding assistant runs only in the Claude Code CLI. The handoff is one-way for code; when the coding assistant prepares the SDK for production it can save a short summary of what it fixed, which this skill shows the next time the profile is loaded.
+8. Optionally hands the SDK off to the sdk-config-coding skill (same plugin) at the end of the session (**Use coding assistant**, next to Close session). It copies the SDK, in test mode, with its report and signal config to `sdk-config-coding/<hostname>/` inside the added folder. Escalated signals are handed over, and so are signals the skill could not build at all (for example a sign-in on another host). The coding assistant runs in Claude Code — the Code tab of Claude Desktop, VS Code, or a terminal — and needs Claude Code on the user's Claude account (Cowork alone isn't enough). The handoff asks which of these the user will continue in and shows the steps for it. The handoff is one-way for code. When the coding assistant prepares the SDK for production it asks whether to save a short summary of what it fixed (`coding-result.json`); if the user agrees, this skill shows it the next time the profile is loaded.
+
+## Validating signals with Acoustic Signal Validator
+
+**Install.** Add [Acoustic Signal Validator](https://chromewebstore.google.com/detail/cdoagpafcllkikfefplfgmabakmpceck) from the Chrome Web Store. The Acoustic icon appears in the toolbar; click it to open the floating validator panel.
+
+**Optional: use the latest schema.** The extension ships with a built-in schema and works offline. To validate against the latest signal definitions, open the panel's **Configuration** tab, enter your Acoustic **API Key** and **Subscription ID**, select your **API Region** (US East, Asia Pacific or Europe), make sure you're signed in to Acoustic in the same browser, and click **Fetch Latest Schema from API**. The schema is saved for offline use.
+
+**Check live signals.**
+
+1. Inject the generated SDK (Tampermonkey or DevTools Overrides) and open your site.
+2. Walk the journey for each signal: view a product, add to cart, search, and so on.
+3. The panel lists each signal as it's sent, marked valid or invalid. Expand one to see its payload and any errors, such as missing fields or wrong types. The stats bar shows Total, Valid, Invalid and Warnings; click one to filter the list. A warning means an optional field had a problem: the signal is still valid, but that field is dropped.
+4. Use the result in the skill's validation matrix: **Passed** when the signal is valid with the values you expect, **Issue found** when it's invalid, choosing the reason that matches the error.
+5. After a fix, click **Reset Validation State** and test again. The validator checks each distinct signal once, so a reset is needed to retest.
+
+**Further debugging: see everything the SDK sends.** The panel shows the signal data only. When a signal looks right in the panel but still doesn't behave as expected, or you need to check the other messages the SDK sends alongside signals (for example the Tealeaf session and event data), tick **"Show the comprehensive Payload data including Tealeaf in browser console"** in the Configuration tab. Then open Chrome DevTools and select the **Acoustic Inspector** tab: it lists every captured request with its full, uncompressed payload, validated against the same schema as the panel. If DevTools was already open, close and reopen it for the tab to appear. This view is for troubleshooting; you don't need it for normal validation.
+
+**Check saved payloads.** Set Validation Mode to **Validate signals on my machine** and upload `.json` or `.jsonl` files to check Signal API payloads before sending them.
+
+**Panel controls:** Pause/Resume capture, Clear, Minimize, Close. A closed panel stays closed until you click the toolbar icon.
+
+**If nothing appears:** check the page loads the Acoustic SDK and that requests reach `/collector/collectorPost` (DevTools → Network). Signals sent by the Shopify app aren't captured yet. Otherwise click Reset Validation State and refresh.
 
 ## Output
 

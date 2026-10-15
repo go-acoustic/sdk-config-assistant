@@ -4,7 +4,7 @@ A Claude Code skill that helps you build and test Acoustic Connect behavioral si
 
 ## Prerequisites
 
-- Claude Code (CLI, or the VS Code / JetBrains extension). The skill doesn't run in Claude Cowork or the Claude app. In Cowork, use [sdk-config-assistant](../sdk-config-assistant) instead.
+- Claude Code on your Claude account. Cowork access alone isn't enough: if Claude Desktop shows no **Code** tab, or you can't start a local session there, ask your Claude admin for Claude Code access. The skill runs in any local Claude Code session — see [Where to run it](#where-to-run-it). It doesn't run in Claude Cowork; there, use [sdk-config-assistant](../sdk-config-assistant) instead.
 - A configured SDK loader (`acoconnect-loader.js`) for your site, with the correct `appKey`, endpoint URL, and `initLogSignal` function present. The skill assumes you will be building the signal code within this framework.
 - Google Chrome (macOS).
 
@@ -16,14 +16,19 @@ The Chrome DevTools MCP isn't bundled with the plugin, so it doesn't start for o
 
 ## Set up a project
 
-Signal work happens in your own project directory (wherever your customer's `sites/` folder should live), not inside the plugin. Pick or create a directory for that work, then:
+Signal work happens in your own project directory (the folder that holds, or will hold, `sdk-config-coding/`), not inside the plugin. Pick or create a directory for that work, then open it in Claude Code.
 
-```zsh
-cd ~/dev/my-signal-work
-claude
-```
+### Where to run it
 
-No setup is required before working on a site — Claude reads your `sites/<hostname>/acoconnect-loader.js` directly and starts implementing signals.
+| | How to open your project folder |
+|---|---|
+| **Claude Desktop** | In the **Code** tab, start a new session using the **local** environment and choose the folder. Leave the worktree option off if it appears. |
+| **VS Code** (or JetBrains) | Open the folder, then open Claude Code. |
+| **Terminal** | `cd ~/dev/my-signal-work` then `claude`. |
+
+All three need Claude Code on your Claude account and run on your own machine. The skill stops in Claude Cowork, in a cloud session (it needs your local Chrome) and in a temporary git worktree (the Tampermonkey script loads the loader from your project's absolute path, so it must be the real folder). You don't need the `claude` command installed to use it from Claude Desktop: setup falls back to registering the Chrome DevTools MCP directly in `~/.claude.json`.
+
+No setup is required before working on a site — Claude reads your `sdk-config-coding/<hostname>/acoconnect-loader.js` directly and starts implementing signals.
 
 **Guided first-run setup.** The first time you work on a site on a machine, Claude offers a one-time walkthrough of the browser tooling below:
 - choosing a dedicated Chrome profile or your default one
@@ -103,12 +108,14 @@ The per-site userscripts only match the customer hostnames you work on, so with 
 
 ### Add your site
 
-Copy your configured `acoconnect-loader.js` into `sites/<hostname>/`:
+Copy your configured `acoconnect-loader.js` into `sdk-config-coding/<hostname>/`:
 
 ```zsh
-mkdir -p sites/<hostname>
-cp /path/to/your/acoconnect-loader.js sites/<hostname>/
+mkdir -p sdk-config-coding/<hostname>
+cp /path/to/your/acoconnect-loader.js sdk-config-coding/<hostname>/
 ```
+
+A project from an earlier version keeps its sites in `sites/<hostname>/`. Claude spots that the first time you work on a site and offers to move them; nothing is deleted or overwritten.
 
 Use a new or recent SDK that uses the `initLogSignal` function to implement signals. You can also ask Claude Code to set up the directories for you rather than doing it from the terminal.
 
@@ -116,13 +123,13 @@ Then tell Claude which site to work on. It will read the loader, show you an imp
 
 ### Continuing from sdk-config-assistant
 
-The `SDK-config-assistant` skill (Claude Cowork, same plugin) generates an SDK config by inspecting the site. It tests each signal up to three times and escalates any that still fail. At the end of its session it shows a **Use coding assistant** button next to Close session. If you choose it and confirm, it copies the SDK into `SDK-config-coding/sites/<hostname>/` inside the folder you added to Cowork. It renames the SDK to `acoconnect-loader.js` and puts its report, its signal config and `original-sdk.js` (the loader exactly as handed off) under `handoff/`. Signals it could not build at all (for example a sign-in on another host) are listed in the signal config's `blockers[]` and handed over too.
+The `SDK-config-assistant` skill (Claude Cowork, same plugin) generates an SDK config by inspecting the site. It tests each signal up to three times and escalates any that still fail. At the end of its session it shows a **Use coding assistant** button next to Close session. If you choose it and confirm, it copies the SDK into `sdk-config-coding/<hostname>/` inside the folder you added to Cowork. It renames the SDK to `acoconnect-loader.js` and puts its report, its signal config and `original-sdk.js` (the loader exactly as handed off) under `handoff/`. Signals it could not build at all (for example a sign-in on another host) are listed in the signal config's `blockers[]` and handed over too.
 
-To continue, open a terminal in that `SDK-config-coding/` folder, run `claude`, and say "let's work on <hostname>". The first time, Claude reads the handoff files and writes `notes.md` with the status of each signal, what was already tried for the escalated ones, and the open questions. It then lists the escalated signals first.
+To continue, open the folder that holds `sdk-config-coding/` in Claude Code — a local session in Claude Desktop's **Code** tab, VS Code, or `claude` in a terminal (see [Where to run it](#where-to-run-it)) — and say "let's work on <hostname>". sdk-config-assistant asks which of these you'll use and shows the matching steps when it hands off. The first time, Claude reads the handoff files and writes `notes.md` with the status of each signal, what was already tried for the escalated ones, and the open questions. It then lists the escalated signals first.
 
 - **One-way for code.** Once you've changed the SDK here, it can't go back into `sdk-config-assistant`. You can re-run that skill on the same site later, but that produces a new SDK. If you hand off again, it asks before replacing the folder and keeps the old one as a backup.
 - **Test mode.** Handed-off SDKs arrive in test mode (`fakeSignals: true`), even if sdk-config-assistant had already switched its own copy to production. When you're done, ask Claude to prepare the SDK for production. It sets the logging flags, re-verifies the SDK, and gives a readiness label.
-- **What goes back.** At the end of preparing for production, Claude asks whether to save a summary of what was fixed. If you agree, it writes `sites/<hostname>/coding-result.json` (signal names, change types, trigger attributes and one-sentence reasons, never code) and uploads it to Acoustic's operator content org, the same place sdk-config-assistant sends its session backups, so sdk-config-analysis can learn from it. The upload needs you to be signed in to app.goacoustic.com in the Chrome profile this skill uses; if it fails, the file is still saved locally. sdk-config-assistant also shows the result the next time you load that site's profile.
+- **What goes back.** At the end of preparing for production, Claude asks whether to save a summary of what was fixed. If you agree, it writes `sdk-config-coding/<hostname>/coding-result.json` (signal names, change types, trigger attributes and one-sentence reasons, never code) and uploads it to Acoustic's operator content org, the same place sdk-config-assistant sends its session backups, so sdk-config-analysis can learn from it. The upload needs you to be signed in to app.goacoustic.com in the Chrome profile this skill uses; if it fails, the file is still saved locally. sdk-config-assistant also shows the result the next time you load that site's profile.
 
 ---
 
@@ -134,4 +141,4 @@ To continue, open a terminal in that `SDK-config-coding/` folder, run `claude`, 
 
 - Follow Claude's lead and develop each signal in turn. Review the code it produces for each signal before moving on. If it isn't clear from the output, tell Claude explicitly to test and validate the new code.
 
-- Test manually! Claude can read the console and verify that a signal fires with the expected payload, but you should also walk through the user journey yourself to confirm behaviour end-to-end.
+- Test manually! Claude can read the console and verify that a signal fires with the expected payload, but you should also walk through the user journey yourself to confirm behaviour end-to-end. Acoustic Signal Validator (see the SDK-config-assistant README) shows each signal's schema result as you walk the journey, alongside the console checks Claude runs.

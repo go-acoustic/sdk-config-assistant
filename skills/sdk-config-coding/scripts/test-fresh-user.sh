@@ -11,11 +11,13 @@
 # points at scratch space instead of your real ones. Nothing real is read or
 # written; cleanup on exit removes only the scratch space this script created.
 #
-# Usage: skills/sdk-config-coding/scripts/test-fresh-user.sh [--handoff]
+# Usage: skills/sdk-config-coding/scripts/test-fresh-user.sh [--handoff] [--legacy]
 #
 #   --handoff  Seed the throwaway project with a synthetic site handed off from
 #              sdk-config-assistant (scripts/fixtures/handoff/shop.example.com),
 #              to exercise the "First open of a handed-off site" flow.
+#   --legacy   With --handoff: seed it as sites/shop.example.com (the old layout)
+#              instead of sdk-config-coding/, to exercise Step 0b's offer to move it.
 #
 # This covers the dedicated-profile first run. To test default-profile mode, or
 # switching between modes, re-run /sdk-config-assistant:sdk-config-coding setup
@@ -30,10 +32,12 @@ SKILL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PLUGIN_ROOT="$(cd "$SKILL_DIR/../.." && pwd)"
 
 HANDOFF=0
+LEGACY=0
 for arg in "$@"; do
   case "$arg" in
     --handoff) HANDOFF=1 ;;
-    *) echo "Unknown option: $arg" >&2; echo "Usage: $0 [--handoff]" >&2; exit 1 ;;
+    --legacy) LEGACY=1 ;;
+    *) echo "Unknown option: $arg" >&2; echo "Usage: $0 [--handoff] [--legacy]" >&2; exit 1 ;;
   esac
 done
 
@@ -68,8 +72,10 @@ cleanup() {
 trap cleanup EXIT
 
 if [ "$HANDOFF" -eq 1 ]; then
-  mkdir -p "$FAKE_PROJECT/sites"
-  cp -R "$SKILL_DIR/scripts/fixtures/handoff/shop.example.com" "$FAKE_PROJECT/sites/"
+  SITES_DIR="sdk-config-coding"
+  [ "$LEGACY" -eq 1 ] && SITES_DIR="sites"
+  mkdir -p "$FAKE_PROJECT/$SITES_DIR"
+  cp -R "$SKILL_DIR/scripts/fixtures/handoff/shop.example.com" "$FAKE_PROJECT/$SITES_DIR/"
 fi
 
 echo "Fresh-user test sandbox:"
@@ -77,7 +83,7 @@ echo "  fake \$HOME = $FAKE_HOME"
 echo "  fake project dir = $FAKE_PROJECT"
 echo "  plugin loaded from = $PLUGIN_ROOT"
 if [ "$HANDOFF" -eq 1 ]; then
-  echo "  seeded handoff site = sites/shop.example.com (try: \"let's work on shop.example.com\")"
+  echo "  seeded handoff site = $SITES_DIR/shop.example.com (try: \"let's work on shop.example.com\")"
 fi
 echo
 echo "Expect a login/trust prompt once — this session has no config yet, same as a real new machine."
