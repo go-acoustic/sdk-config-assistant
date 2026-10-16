@@ -1734,7 +1734,7 @@ profile_path.write_text(json.dumps(profile, indent=2))
 
 **Step B — Validate and generate**
 
-The generator uses `assets/initLogSignal.js` (committed to the repo) as its base — no CDN fetch required on a fresh clone. Always use `scripts/generate_sdk_patched.py` (not `generate_sdk.py`) — the patched version resolves additional field-source formats, enforces the TODO hard-block, injects the audience signal, and updates privacy targets automatically.
+The generator uses `assets/initLogSignal.js` (shipped with the skill) as its base. If that file is missing or invalid, the generator falls back to Acoustic's public CDN copy on its own; see below. Always use `scripts/generate_sdk_patched.py` (not `generate_sdk.py`) — the patched version resolves additional field-source formats, enforces the TODO hard-block, injects the audience signal, and updates privacy targets automatically.
 
 The output folder is always `sdk-config-assistant/<host>/` in the added folder, where `<host>` is the site's production hostname (see **Folder layout** in the Pre-step). Never choose another name, and never write output anywhere else — Step 9's file listing, the CMS upload, and the coding handoff all look for it there. A site folder that already exists is reused; the generator overwrites its files.
 
@@ -1752,15 +1752,11 @@ PYTHONPATH=scripts python3 scripts/generate_sdk_patched.py \
 
 If it prints `ERROR: customer.productionDomain missing from profile`, nothing was generated: fill in `customer.productionDomain` and run it again. Never generate into `sdk-config-assistant/` itself.
 
-> **`assets/initLogSignal.js` missing or needs refreshing?** The bash sandbox has no outbound internet access, so do NOT use `curl`, Python `requests/urllib`, or `mcp__workspace__web_fetch` to fetch it — those will all fail or be blocked. Use Chrome instead:
+> **`assets/initLogSignal.js` missing?** Run the command above unchanged. `generate_sdk_patched.py` reads `--base-js` first, then `assets/initLogSignal.js`, then fetches the public CDN copy, and logs which one it used. It injects the `jsonLdGet` helpers whichever source it uses. Don't fetch the file yourself with `curl`, `web_fetch` or Chrome `get_page_text`: the text Chrome returns loses its line breaks, so `//` comments swallow the code after them.
 >
-> 1. `mcp__Claude_in_Chrome__navigate` to the CDN URL below
-> 2. `mcp__Claude_in_Chrome__get_page_text` on that tab — this returns the full JS source
-> 3. Write the returned content to `assets/initLogSignal.js`
+> If the generator exits with `Could not fetch initLogSignal.js from CDN` (the session's network blocks it), stop and tell the user in one line that the skill's `assets/initLogSignal.js` is missing and the plugin needs updating, then wait. Don't ask them to download the file.
 >
-> **Never use `javascript_tool` to read the file** — the Chrome extension's content filter blocks raw JS content. `get_page_text` is the only Chrome tool that works for this.
->
-> CDN URL: `https://content-eu-1.content-cms.com/7fbff3c6-1b3b-4a7d-a64e-c8ebc38fa3df/dxdam/35/35cc26b5-a0ec-4e55-8c8e-a42b40cc54e1/initLogSignal.js`
+> CDN URL (used by the generator): `https://content-eu-1.content-cms.com/7fbff3c6-1b3b-4a7d-a64e-c8ebc38fa3df/dxdam/35/35cc26b5-a0ec-4e55-8c8e-a42b40cc54e1/initLogSignal.js`
 >
 > **Never use `sdk-template.js` as `--base-js`** — it lacks the signal key blocks the generator requires and will produce a broken, doubled SDK Config output.
 

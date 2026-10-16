@@ -32,10 +32,9 @@ BASE_INIT_LOG_SIGNAL_URL = (
     "https://content-eu-1.content-cms.com/7fbff3c6-1b3b-4a7d-a64e-c8ebc38fa3df"
     "/dxdam/35/35cc26b5-a0ec-4e55-8c8e-a42b40cc54e1/initLogSignal.js"
 )
-# initLogSignal.js is fetched automatically from BASE_INIT_LOG_SIGNAL_URL on every
-# run when --base-js is not supplied. Pass --base-js only if the CDN is unreachable
-# from the current Python environment (e.g. a sandboxed shell). No persistent copy
-# is stored in assets/.
+# initLogSignal.js ships with the skill in assets/ and is read from there.
+# BASE_INIT_LOG_SIGNAL_URL (Acoustic's public CDN copy) is the fallback, used only
+# when neither --base-js nor assets/initLogSignal.js is available. See load_base().
 ASSETS_DIR = Path(__file__).parent.parent / "assets"
 SDK_TEMPLATE_PATH = ASSETS_DIR / "sdk-template.js"
 SDK_INSERT_MARKER = "// InitLogsignsal here - do not remove this comment"
@@ -121,8 +120,8 @@ def _inject_helpers(js: str) -> str:
 
 
 def fetch_base_from_cdn() -> str:
-    """Fetch initLogSignal.js directly from CDN. Called when --base-js is omitted."""
-    print(f"[ACO] --base-js not supplied; fetching from CDN: {BASE_INIT_LOG_SIGNAL_URL}", file=sys.stderr)
+    """Fetch initLogSignal.js from the public CDN. Last resort in load_base()."""
+    print(f"[ACO] No usable local initLogSignal.js; fetching from CDN: {BASE_INIT_LOG_SIGNAL_URL}", file=sys.stderr)
     try:
         req = urllib.request.Request(
             BASE_INIT_LOG_SIGNAL_URL,
@@ -144,25 +143,46 @@ def fetch_base_from_cdn() -> str:
 _LOCAL_BASE_JS = ASSETS_DIR / "initLogSignal.js"
 
 
-def load_base(base_js_path: "Path | None") -> str:
-    """Load initLogSignal.js — from disk if path given, otherwise fetched from CDN.
-
-    Lookup order:
-      1. --base-js argument (explicit path)
-      2. assets/initLogSignal.js (local cache, avoids CDN in restricted envs)
-      3. CDN fetch
-    """
-    if base_js_path is None:
-        if _LOCAL_BASE_JS.exists():
-            js = _LOCAL_BASE_JS.read_text(encoding="utf-8")
-            print(f"[ACO] Loaded base JS from local cache {_LOCAL_BASE_JS} ({len(js):,} chars)", file=sys.stderr)
-            return js
-        js = fetch_base_from_cdn()
-    else:
-        js = base_js_path.read_text(encoding="utf-8")
-        print(f"[ACO] Loaded base JS from {base_js_path} ({len(js):,} chars)", file=sys.stderr)
-    js = _inject_helpers(js)
+def _read_base_file(path: Path) -> "str | None":
+    """Return the file's text if it looks like initLogSignal.js, otherwise None."""
+    try:
+        js = path.read_text(encoding="utf-8")
+    except OSError as exc:
+        print(f"[ACO] WARNING: could not read {path} ({exc})", file=sys.stderr)
+        return None
+    if "function initLogSignal" not in js:
+        print(f"[ACO] WARNING: {path} does not contain initLogSignal — ignoring it", file=sys.stderr)
+        return None
     return js
+
+
+def load_base(base_js_path: "Path | None") -> str:
+    """Load initLogSignal.js and inject the jsonLdGet helpers.
+
+    Lookup order, first usable source wins:
+      1. --base-js argument (explicit path)
+      2. assets/initLogSignal.js (shipped with the skill)
+      3. the public CDN copy (BASE_INIT_LOG_SIGNAL_URL)
+
+    A missing or invalid file falls through to the next source. The helpers are
+    injected whichever source is used.
+    """
+    js = None
+    tried = Path(base_js_path).resolve() if base_js_path is not None else None
+    if base_js_path is not None:
+        if Path(base_js_path).is_file():
+            js = _read_base_file(Path(base_js_path))
+            if js is not None:
+                print(f"[ACO] Loaded base JS from {base_js_path} ({len(js):,} chars)", file=sys.stderr)
+        else:
+            print(f"[ACO] WARNING: --base-js {base_js_path} not found — trying the next source", file=sys.stderr)
+    if js is None and tried != _LOCAL_BASE_JS.resolve() and _LOCAL_BASE_JS.is_file():
+        js = _read_base_file(_LOCAL_BASE_JS)
+        if js is not None:
+            print(f"[ACO] Loaded base JS from {_LOCAL_BASE_JS} ({len(js):,} chars)", file=sys.stderr)
+    if js is None:
+        js = fetch_base_from_cdn()
+    return _inject_helpers(js)
 
 
 def slugify(value: str) -> str:
@@ -1041,9 +1061,8 @@ def main() -> int:
         "--base-js", type=Path, required=False, default=None,
         metavar="PATH",
         help=(
-            "Path to a pre-fetched initLogSignal.js. "
-            "If omitted the script fetches it automatically from BASE_INIT_LOG_SIGNAL_URL. "
-            "Supply this flag only when the CDN is unreachable from the current environment."
+            "Path to initLogSignal.js. If omitted, missing or invalid, the script uses "
+            "assets/initLogSignal.js, then the public CDN copy (BASE_INIT_LOG_SIGNAL_URL)."
         ),
     )
     args = parser.parse_args()
