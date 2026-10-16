@@ -69,7 +69,7 @@ claude plugin update sdk-config-assistant@SDK-config-assistant
 
 [Acoustic Signal Validator](https://chromewebstore.google.com/detail/cdoagpafcllkikfefplfgmabakmpceck) is Acoustic's browser extension for checking signals while you test. It captures the signals your site sends, validates each one against the Acoustic schema for that signal type, and shows valid/invalid results with field-level error messages. Validation runs in your browser.
 
-Use it with both skills: while validating the SDK `sdk-config-assistant` generates, and while hand-editing signals with `sdk-config-coding`. See [Validating signals with Acoustic Signal Validator](skills/sdk-config-assistant/README.md#validating-signals-with-acoustic-signal-validator).
+Use it with both skills: while validating the SDK Config `sdk-config-assistant` generates, and while hand-editing signals with `sdk-config-coding`. See [Validating signals with Acoustic Signal Validator](skills/sdk-config-assistant/README.md#validating-signals-with-acoustic-signal-validator).
 
 ## Need help?
 

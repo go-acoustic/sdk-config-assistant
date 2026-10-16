@@ -166,7 +166,7 @@ When the user says "let's work on" or "let's continue" a site, or asks to start/
    - ⏭️ skipped (no trigger expected — e.g. `accountRegistered` with no known confirmation page)
    - ⬜ not yet started (empty `enhance` or no triggers)
 
-   Omit the `audience` utility signal (see "Signal names in handed-off SDKs"). For a handed-off site, list the handed-over signals first (those `notes.md` records as escalated or blocked at handoff, including signals from `blockers[]` that were never built), marked 🔺 handed over, with their reason codes or blocker summary — these are usually why the site was handed off. A handed-over signal whose `enhance` and triggers are now filled in is ✅ like any other.
+   Omit the `audience` utility signal (see "Signal names in handed-off SDK Configs"). For a handed-off site, list the handed-over signals first (those `notes.md` records as escalated or blocked at handoff, including signals from `blockers[]` that were never built), marked 🔺 handed over, with their reason codes or blocker summary — these are usually why the site was handed off. A handed-over signal whose `enhance` and triggers are now filled in is ✅ like any other.
 3. **Ask about SDK Config injection** — for an ongoing implementation, ask: "Does the Tampermonkey script need to be set up, or is it already installed?" For a new site, offer to walk through setup. Then follow the session start steps below.
 4. All edits target `sdk-config-coding/<hostname>/acoconnect-loader.js`, within `initLogSignal` only.
 5. If the project already has ESLint set up (an `eslint.config.mjs` exists at the project root — see "Linting" below), lint after every edit: `npx eslint sdk-config-coding/<hostname>/acoconnect-loader.js --fix`. If it doesn't, skip linting — don't mention it unless the user asks.
@@ -223,7 +223,7 @@ Run once, when `handoff/` exists and `notes.md` does not.
    Record only what the handoff files state. Mark anything missing as "not stated" rather than filling it in.
 5. Continue with "Working on a site" from step 2. When starting a handed-over signal, check its escalation history and the field `mappings` first. Don't repeat an approach that `correctionHistory` shows already failed unless there's a new reason to expect it to work.
 
-### Signal names in handed-off SDKs
+### Signal names in handed-off SDK Configs
 
 `sdk-config-assistant` names signals by its profile keys; the SDK Config itself uses the `cfg.signals` keys. They match except:
 
