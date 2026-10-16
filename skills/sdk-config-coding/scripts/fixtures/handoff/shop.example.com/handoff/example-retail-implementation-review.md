@@ -1,12 +1,12 @@
 <!-- SYNTHETIC TEST FIXTURE: not real customer data -->
-# SDK Implementation Review — Round 2
+# SDK Config Implementation Review — Round 2
 
 - **Customer:** Example Retail
 - **Domain:** shop.example.com
 - **Mode:** test
 - **Signals:** pageView, productView, addToCart, identification
 - **DataLayer:** Yes — view_item, view_item_list
-- **Original SDK file name:** acoConnectSdkConfig-shop.js
+- **Original SDK Config file name:** acoConnectSdkConfig-shop.js
 
 ## Signal mapping
 

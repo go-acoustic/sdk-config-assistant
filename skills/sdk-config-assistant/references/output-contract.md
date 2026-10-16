@@ -43,7 +43,7 @@ Do not say a signal was tested when only its selector was inspected.
 
 Include the following note block in the implementation review, after the signal mapping table and before the deployment instructions. This helps the customer's developer understand what each function and configuration option does.
 
-> **For the developer implementing this SDK:** The `initLogSignal` configuration guide below explains every option you will see in the generated JavaScript. Read it if you are unsure what a trigger, enhance function, or help utility does.
+> **For the developer implementing this SDK Config:** The `initLogSignal` configuration guide below explains every option you will see in the generated JavaScript. Read it if you are unsure what a trigger, enhance function, or help utility does.
 >
 > Full reference: `references/initLogSignal-guide.md` (included alongside your implementation files).
 

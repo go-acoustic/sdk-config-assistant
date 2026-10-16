@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
-"""Move an SDK config working folder from the old layout to the layout-by-skill one.
+"""Move an SDK Config working folder from the old layout to the layout-by-skill one.
 
 Old layout (inside the folder the user added):
-    SDK-config-assistant/outputs/<anything>/   generated SDK, review, test guide
+    SDK-config-assistant/outputs/<anything>/   generated SDK Config, review, test guide
     SDK-config-assistant/profiles/             website profiles + analytics sidecars
     SDK-config-coding/sites/<host>/            handed-off sites (coding assistant)
     SDK-coding-assistant/sites/<host>/         handoffs made under the coding assistant's old name
 
 New layout:
-    sdk-config-assistant/<host>/               generated SDK, review, test guide
+    sdk-config-assistant/<host>/               generated SDK Config, review, test guide
     sdk-config-assistant/profiles/             website profiles + analytics sidecars (unchanged)
     sdk-config-coding/<host>/                  handed-off sites
     sdk-config-analysis/                       analysis reports (created by that skill when it writes one)

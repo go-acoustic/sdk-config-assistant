@@ -2,7 +2,7 @@
 // @name         Acoustic Connect - HOSTNAME
 // @namespace    acoustic-connect
 // @version      1.0
-// @description  Injects the Acoustic Connect SDK loader for development
+// @description  Injects the customer's SDK Config (which loads the Acoustic Connect SDK) for development
 // @author       Acoustic
 // @match        https://MATCH_PATTERN
 // @require      file://ABSOLUTE_PROJECT_PATH/sdk-config-coding/HOSTNAME/acoconnect-loader.js

@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-Generate a configured Acoustic SDK package for a customer.
+Generate a customer's SDK Config (the JS that loads and drives the Acoustic SDK).
 
 Outputs per run:
-  acoConnectSdkConfig-<domain-slug>.js                    — SDK bundle (paste into DevTools or GTM)
+  acoConnectSdkConfig-<domain-slug>.js                    — SDK Config (paste into DevTools or GTM)
   acoConnectSdkConfig-<domain-slug>.tamperMonkeyConfig.js — lightweight Tampermonkey @require script
   <customer-slug>-customer-signal-config.json
   <customer-slug>-implementation-review.md
@@ -789,7 +789,7 @@ def configure_init_log_signal(base_js: str, profile: dict[str, Any]) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Full SDK assembly (insert into template)
+# Full SDK Config assembly (insert into template)
 # ---------------------------------------------------------------------------
 
 _PRO_TIER_NAMES = {'pro', 'connectpro'}
@@ -801,7 +801,7 @@ def build_full_sdk(configured_init_log_signal: str, profile: dict[str, Any]) -> 
     collector_url = customer.get("collectorUrl", "TODO")
 
     if not SDK_TEMPLATE_PATH.exists():
-        raise FileNotFoundError(f"SDK template not found: {SDK_TEMPLATE_PATH}")
+        raise FileNotFoundError(f"SDK Config template not found: {SDK_TEMPLATE_PATH}")
 
     template = SDK_TEMPLATE_PATH.read_text(encoding="utf-8")
     if SDK_INSERT_MARKER not in template:
@@ -829,7 +829,7 @@ def build_full_sdk(configured_init_log_signal: str, profile: dict[str, Any]) -> 
 
 def build_tampermonkey(profile: dict[str, Any], bundle_filename: str, bundle_abs_path: str) -> str:
     """
-    Build a lightweight Tampermonkey userscript that @require-loads the SDK bundle
+    Build a lightweight Tampermonkey userscript that @require-loads the SDK Config
     from the local file system.  The bundle itself (acoConnectSdkConfig-*.js) is NOT
     inlined here — Tampermonkey fetches it from the file:// URL on each page load,
     so testers only need to swap the .js file to pick up new rounds.
@@ -857,11 +857,11 @@ def build_tampermonkey(profile: dict[str, Any], bundle_filename: str, bundle_abs
 
     return dedent(f"""\
         // ==UserScript==
-        // @name         Acoustic SDK — {name} [{mode.upper()}] r{rnd}
+        // @name         Acoustic SDK Config — {name} [{mode.upper()}] r{rnd}
         // @namespace    https://acoustic.com/sdk
         // @version      1.{rnd}
-        // @description  Acoustic Tealeaf/Connect SDK for {name} — {mode} mode, round {rnd}
-        // @author       Acoustic SDK Configuration Assistant
+        // @description  Acoustic Tealeaf/Connect SDK Config for {name} — {mode} mode, round {rnd}
+        // @author       Acoustic SDK Config Assistant
         {chr(10).join(match_lines)}
         // @require      {require_url}
         // @grant        none
@@ -915,7 +915,7 @@ def review_markdown(profile: dict[str, Any], warnings: list[str], d_slug: str, b
     mode = profile["settings"]["mode"]
 
     rows = [
-        f"# SDK Implementation Review — Round {rnd}",
+        f"# SDK Config Implementation Review — Round {rnd}",
         "",
         f"- **Customer:** {customer['name']}",
         f"- **Domain:** {customer['productionDomain']}",
@@ -925,7 +925,7 @@ def review_markdown(profile: dict[str, Any], warnings: list[str], d_slug: str, b
         "",
         "---",
         "",
-        "## How to inject the SDK (Tampermonkey — recommended)",
+        "## How to inject the SDK Config (Tampermonkey — recommended)",
         "",
         f"1. Install [Tampermonkey](https://www.tampermonkey.net/) in Chrome if not already installed",
         f"2. In Tampermonkey **Settings → Security**, add your output folder to **Allowlist for @require**:",
@@ -1065,7 +1065,7 @@ def main() -> int:
     slug = slugify(profile["customer"]["name"])
     d_slug = domain_slug(profile["customer"].get("productionDomain", ""))
     # OUTPUT NAMING CONVENTION — DO NOT CHANGE
-    # SDK bundle:           acoConnectSdkConfig-{domain-slug}.js
+    # SDK Config:           acoConnectSdkConfig-{domain-slug}.js
     # Tampermonkey config:  acoConnectSdkConfig-{domain-slug}.tamperMonkeyConfig.js
     # domain-slug derived from productionDomain (e.g. www2.acmeretail.com → acmeretail)
     bundle_name = f"acoConnectSdkConfig-{d_slug}.js"

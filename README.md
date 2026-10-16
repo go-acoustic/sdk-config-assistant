@@ -1,10 +1,10 @@
 # SDK Config Assistant
 
-Claude skills from Acoustic for building and testing Acoustic Connect JavaScript SDK signal configurations.
+Claude skills from Acoustic for building and testing Acoustic Connect SDK Configs: the site-specific JavaScript that sends your website's signals through the Acoustic SDK.
 
 | Skill | Runs in | What it does |
 |---|---|---|
-| [`sdk-config-assistant`](skills/sdk-config-assistant/README.md) | Claude Desktop, **Cowork** tab | Inspects your live website and generates a ready-to-test SDK signal configuration, with guided validation and CMS upload. |
+| [`sdk-config-assistant`](skills/sdk-config-assistant/README.md) | Claude Desktop, **Cowork** tab | Inspects your live website and generates a ready-to-test **SDK Config** (your site-specific signal code that drives the Acoustic SDK), with guided validation and CMS upload. |
 | [`sdk-config-coding`](skills/sdk-config-coding/README.md) | **Claude Code** (CLI, VS Code, JetBrains) | Hand-edits, debugs and tests the JavaScript in an existing loader against the live site through Tampermonkey and the Chrome DevTools MCP, and prepares it for production. |
 
 The two work as a pair: `sdk-config-assistant` generates a configuration, and `sdk-config-coding` picks it up when a signal needs code written by hand. Both ship in one plugin, so a single install gives you both — each skill only activates in the host it supports.
@@ -59,6 +59,11 @@ To pick up later releases, both commands are needed — the first pulls the mark
 claude plugin marketplace update SDK-config-assistant
 claude plugin update sdk-config-assistant@SDK-config-assistant
 ```
+
+## SDK vs SDK Config
+
+- **SDK**: Acoustic's JavaScript library (`acoconnect.min.js`). It is the same for every customer and is owned, versioned and deployed to the Acoustic CDN by Acoustic. These skills never change it.
+- **SDK Config**: your site-specific JavaScript that maps actions on your website to the SDK and tells it what to send to Acoustic. You own it (you can ask Acoustic to maintain it under a service contract) and host it on your own CDN, or in the Acoustic Media Library of your subscription. This is what these skills create, fix and prepare for production.
 
 ## Recommended: Acoustic Signal Validator
 

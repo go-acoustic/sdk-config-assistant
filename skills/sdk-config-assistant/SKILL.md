@@ -1,9 +1,19 @@
 ---
 name: sdk-config-assistant
-description: Inspect live customer websites with an available browser automation tool and generate safe, review-ready Acoustic Tealeaf/Connect JavaScript signal configurations and reusable customer mapping JSON. Use for new customer SDK onboarding, auditing or updating initLogSignal(), mapping page/product/cart/order/form/search/media signals, inspecting runtime DOM/dataLayer/network state, validating payloads, or producing implementation and test plans. Only supported in Claude Cowork (for now).
+description: Inspect live customer websites with an available browser automation tool and generate safe, review-ready Acoustic Tealeaf/Connect JavaScript signal configurations and reusable customer mapping JSON. Use for new customer SDK Config onboarding, auditing or updating initLogSignal(), mapping page/product/cart/order/form/search/media signals, inspecting runtime DOM/dataLayer/network state, validating payloads, or producing implementation and test plans. Only supported in Claude Cowork (for now).
 ---
 
 # SDK-config-assistant
+
+
+## SDK vs SDK Config — never confuse them (hard rule)
+
+> ⛔ **HARD RULE — terminology.** Two different things are involved, and every message, widget, file, report and comment must name them correctly. Calling the SDK Config "the SDK" is a defect.
+>
+> - **SDK** — Acoustic's JavaScript library (`acoconnect.js` / `acoconnect.min.js`, `window.TLT`). It is the same for every customer and knows how to send data to Acoustic. It is owned by Acoustic, and versioned and deployed to the Acoustic CDN by Acoustic P&E. This skill and sdk-config-coding never create, edit, version or deploy it.
+> - **SDK Config** — the customer-specific JavaScript glue code that runs in the browser, maps actions on the customer's website to the SDK's programmatic interface (`initLogSignal`, triggers, `enhance`) and calls the SDK to send them to Acoustic. It is created by Acoustic (typically Professional Services, sometimes implementation or a CSM) or by the customer, and it is owned by the customer, who can delegate its maintenance to Acoustic under a service contract. It is deployed to the customer's CDN, or uploaded to the Acoustic Media Library in their subscription and served by the Acoustic CDN on their behalf. This is what this skill generates, hand over, fix and prepare for production.
+>
+> Use "SDK Config" for the second, every time — never "the SDK", "SDK bundle", "SDK loader", "SDK files" or "handed-off SDK" for it. Use "SDK" only for Acoustic's library. Existing file names and JSON keys keep their names because other files depend on them (`acoConnectSdkConfig-<domain>.js`, `acoconnect-loader.js`, `handoff/original-sdk.js`, `originalSdkFileName`, `acoustic.sdkBundle`): they all hold or describe the SDK Config, and must be described that way.
 
 
 ## Guardrails — read before executing any step
@@ -116,7 +126,7 @@ In both cases apply the fallback below by widget category. A missing tool is not
 - **Category 3d — Intake forms requiring free-text input**: `intake_step1a`, `credentials_manual_entry`, `category_unknown`
   → **HARD STOP.** These forms collect values (domain, customer name, credentials) that cannot be represented as a fixed option list. Output exactly one sentence: *"The widget renderer is unavailable — please restart the Claude desktop app and reopen this conversation to continue."* Do not ask for these values in chat text. Do not proceed.
 
-**Execution discipline — page inspection and SDK configuration**
+**Execution discipline — page inspection and SDK Config**
 
 This skill executes two kinds of mechanical work: (1) navigating live pages and running capture scripts, and (2) writing `initLogSignal` enhance functions. Both must be done by the book — no creativity, no optimisation, no smart alternatives.
 
@@ -133,7 +143,7 @@ This skill executes two kinds of mechanical work: (1) navigating live pages and 
 >
 > On production sites this adds one real item to the basket. This is expected and accepted. **No user confirmation is required, requested, or permitted.**
 
-**SDK configuration — `initLogSignal` enhance functions:**
+**SDK Config — `initLogSignal` enhance functions:**
 - Every `enhance` function must be built exclusively from patterns defined in `references/signal-schema.md`. Do not invent new JavaScript patterns, DOM selectors, or extraction logic not covered by the schema reference.
 - Field source priority is fixed (JSON-LD → dataLayer → meta → DOM selector → URL param → static fallback). Do not skip levels or use a lower-priority source when a higher one is available.
 - `return false` (not `return null`, not `return signal`) when a required field is missing. This is the defined pattern — do not change it.
@@ -247,7 +257,7 @@ mkdir -p /sessions/*/mnt/sdk-config-assistant/profiles/
 <added folder>/
 ├── sdk-config-assistant/
 │   ├── profiles/          website profiles and analytics sidecars (this skill's state)
-│   └── <host>/            generated SDK, implementation review, test guide — one folder per site
+│   └── <host>/            generated SDK Config, implementation review, test guide — one folder per site
 ├── sdk-config-coding/
 │   └── <host>/            sites handed off to the coding assistant (written in E-3)
 └── sdk-config-analysis/   reports written by the analysis skill
@@ -300,7 +310,7 @@ Then wait for the user to add a folder before proceeding to Step 0. Do not conti
     </div>
   </div>
   <div style="background:var(--color-background-secondary);border-radius:8px;padding:10px 14px;font-size:12px;color:var(--color-text-secondary);margin-bottom:14px">
-    <strong>Recommended — use a Project:</strong> create a Project (for example <code>SDK config</code>),
+    <strong>Recommended — use a Project:</strong> create a Project (for example <code>SDK Config</code>),
     add a folder to the Project's context, and run this skill from sessions inside that Project. Every
     session in the Project can then read and write the same profiles, so you only set this up once.
     <br><br>
@@ -328,7 +338,7 @@ When `sendPrompt` fires `'Folder added — continue'`: re-run the bash check. If
 >
 > There are two ways to give me one:
 >
-> 1. **Use a Project — recommended.** Create a Project (for example `SDK config`), add a folder to the Project's context, then run this skill from sessions inside that Project. Every session in the Project reads and writes the same profiles, so you set this up once and every future run finds your work.
+> 1. **Use a Project — recommended.** Create a Project (for example `SDK Config`), add a folder to the Project's context, then run this skill from sessions inside that Project. Every session in the Project reads and writes the same profiles, so you set this up once and every future run finds your work.
 > 2. **This session only.** Add a folder to the current session context. It applies to this conversation alone — the next session will ask again.
 >
 > A dedicated folder such as `Acoustic SDK Configs` works well. Where the **Add folder** control lives varies by Claude version; check the app's own help if you can't find it.
@@ -352,9 +362,9 @@ Then `AskUserQuestion` with exactly these three options — this keeps the gate 
 Use `AskUserQuestion` with exactly two options:
 
 - **New customer** — New customer onboarding (Full onboarding — inspect, generate, upload)
-- **Modifying an existing customer SDK config** — Update a previously created customer SDK
+- **Modifying an existing customer SDK Config** — Update a previously created customer SDK Config
 
-Set `mode = "new"` if the user selects "New customer", `mode = "existing"` if "Modifying an existing customer SDK config".
+Set `mode = "new"` if the user selects "New customer", `mode = "existing"` if "Modifying an existing customer SDK Config".
 
 Read the result via `mcp__cowork__read_widget_context`.
 
@@ -366,7 +376,7 @@ Read the result via `mcp__cowork__read_widget_context`.
 
 Proceed directly to the **Chrome pre-flight check** below, then to Step 1 (the intake form). No intermediate questions.
 
-After SDK config generation and upload are complete, **persist the website profile** (see "Persist profile after upload" in Step 10 Step C).
+After SDK Config generation and upload are complete, **persist the website profile** (see "Persist profile after upload" in Step 10 Step C).
 
 ---
 
@@ -623,12 +633,12 @@ This reads only `coding-result.json` in the handed-off folder, never anything el
 - `SIGNALS_TOTAL` → total signals in scope for this site (up to 9; the full set is available on every tier)
 - `INSPECTION_ROUND` → `inspection.round` (default `1` if absent)
 - `HANDOFF_LINE` → empty when the profile has no `handoff` object. Otherwise `<div class="pl-status" style="margin-top:8px"><div class="pl-dot" style="background:#706CFF"></div><span class="pl-status-text">TEXT</span></div>`, where `TEXT` is built from the Step 0c-H `HANDOFF|` output (or from `handoff.at`, `handoff.folder` and `handoff.result` when the script printed `SKIP`):
-  - with a result: `"Handed off to the coding assistant on DATE (FOLDER). Fixed there: FIXED_LIST. Readiness there: READINESS. Continuing here produces a new SDK."` Use `none recorded` when the fixed list is empty.
-  - without a result: `"Handed off to the coding assistant on DATE (FOLDER). No result saved there yet. Continuing here produces a new SDK."`
+  - with a result: `"Handed off to the coding assistant on DATE (FOLDER). Fixed there: FIXED_LIST. Readiness there: READINESS. Continuing here produces a new SDK Config."` Use `none recorded` when the fixed list is empty.
+  - without a result: `"Handed off to the coding assistant on DATE (FOLDER). No result saved there yet. Continuing here produces a new SDK Config."`
   This is information only. It adds no button and no question, and routing is unchanged.
 - `STATUS_LINE` → derive from profile state:
-  - `acoustic.deliveryUrl` absent → `"No prior SDK upload detected — ready to generate or re-inspect"`
-  - `acoustic.sdkBundle.validated == false` → `"SDK config generated — pending signal validation"`
+  - `acoustic.deliveryUrl` absent → `"No prior SDK Config upload detected — ready to generate or re-inspect"`
+  - `acoustic.sdkBundle.validated == false` → `"SDK Config generated — pending signal validation"`
   - `acoustic.sdkConfigurationComplete == true` → `"Configuration complete — delivery URL active"`
   - otherwise → `"Profile loaded from round INSPECTION_ROUND inspection"`
 
@@ -662,9 +672,9 @@ Then re-present the **validation matrix** from Step 9 (`signal_validation_matrix
 
 Use `AskUserQuestion` to confirm what the user wants to do next:
 
-- **"Regenerate SDK config from saved profile"** — re-run generation with the existing profile (no browser re-inspection needed). Skips to Step 9 (validate and generate).
+- **"Regenerate SDK Config from saved profile"** — re-run generation with the existing profile (no browser re-inspection needed). Skips to Step 9 (validate and generate).
 - **"Re-inspect pages then regenerate"** — run the full browser inspection again to refresh mappings. Goes to Chrome pre-flight then Step 2.
-- **"Just re-upload the existing SDK config"** — skip generation entirely. Goes to Step 11 (TODO check + manual edits) → Step 12 (JS review — confirm `fakeSignals: false`) → Step 13 (browser verify) → Step 10-pre (deployment choice) → Step 10 re-upload flow. Do NOT skip Steps 11, 12, or 13 — re-uploading a config without verifying `fakeSignals: false` would push a test-mode config to production.
+- **"Just re-upload the existing SDK Config"** — skip generation entirely. Goes to Step 11 (TODO check + manual edits) → Step 12 (JS review — confirm `fakeSignals: false`) → Step 13 (browser verify) → Step 10-pre (deployment choice) → Step 10 re-upload flow. Do NOT skip Steps 11, 12, or 13 — re-uploading a config without verifying `fakeSignals: false` would push a test-mode config to production.
 
 ---
 
@@ -1254,7 +1264,7 @@ Render this HTML, substituting `CUSTOMER_NAME` and `TIER` with the actual values
 
   <div style="margin-top:12px;padding:10px 14px;background:var(--color-background-secondary);border-radius:var(--border-radius-md);font-size:12px;color:var(--color-text-secondary)">
     <i class="ti ti-info-circle" aria-hidden="true"></i>
-    All signals are available on Pro, Premium, and Ultimate. Any signal shown as not applicable has no matching functionality on this site — it is skipped during inspection and excluded from the generated SDK config. Run a diff pass if the site adds it later.
+    All signals are available on Pro, Premium, and Ultimate. Any signal shown as not applicable has no matching functionality on this site — it is skipped during inspection and excluded from the generated SDK Config. Run a diff pass if the site adds it later.
   </div>
 </div>
 ```
@@ -1660,7 +1670,7 @@ If values would differ, document the mismatch in `questions` before generating. 
 
 If the skill cannot confirm a match (e.g. order confirmation uses a different SKU format, or the site wasn't accessible on staging), note it as an open item — the implementation review will include a ⚠️ product ID consistency warning.
 
-Copy `assets/website-profile.template.json` into the site's output folder (`sdk-config-assistant/<host>/` — see **Folder layout** in the Pre-step) and populate it from confirmed evidence. Use auto-captured Type 2 and Type 4 data to fill `pageCategoryRules` and signal `triggers`. Keep customer rules isolated from the reusable SDK engine.
+Copy `assets/website-profile.template.json` into the site's output folder (`sdk-config-assistant/<host>/` — see **Folder layout** in the Pre-step) and populate it from confirmed evidence. Use auto-captured Type 2 and Type 4 data to fill `pageCategoryRules` and signal `triggers`. Keep customer rules isolated from the reusable `initLogSignal` engine.
 
 ---
 
@@ -1675,23 +1685,23 @@ The widget must show:
 - **Pages inspected** — list each page type with a ✅ (evidence captured) or ⚠️ (could not verify)
 - **Signals ready to generate** — list signals with confirmed triggers (green ✅)
 - **Blockers** — list any entries from `profile.blockers[]` with a ⚠️ badge and the plain-language `summary` (not the `resolution` — keep it short). Use severity to colour: high = red/amber, medium = amber, low = grey.
-- **Recommended next step** — always "Generate SDK config (test mode)" unless all signals are blocked
+- **Recommended next step** — always "Generate SDK Config (test mode)" unless all signals are blocked
 
 Then use `AskUserQuestion` to ask:
 
 **"All pages have been inspected. What would you like to do next?"**
 
 Options:
-- **"Generate SDK config now"** — proceed to Step 9. The SDK config will be generated in test mode (signals print to console only — no data is sent).
-- **"Pause — I need to resolve blockers first"** — stop here. Display the blockers list from `profile.blockers[]` with the `resolution` text for each. Tell the user: "Come back and say 'Generate SDK config' when you're ready and I'll continue from here."
+- **"Generate SDK Config now"** — proceed to Step 9. The SDK Config will be generated in test mode (signals print to console only — no data is sent).
+- **"Pause — I need to resolve blockers first"** — stop here. Display the blockers list from `profile.blockers[]` with the `resolution` text for each. Tell the user: "Come back and say 'Generate SDK Config' when you're ready and I'll continue from here."
 
-> If the user selects "Generate SDK config now" but there are high-severity blockers, proceed but flag the blocked signals in the implementation review as `⚠️ Requires customer input before production`.
+> If the user selects "Generate SDK Config now" but there are high-severity blockers, proceed but flag the blocked signals in the implementation review as `⚠️ Requires customer input before production`.
 
 ---
 
 ### 9. Validate and generate
 
-> **⛔ HARD STOP — Step 8b gate is a prerequisite.** Before calling `validate_profile.py` or `generate_sdk_patched.py`, confirm that Step 8b has been completed in this session — both the `show_widget` inspection summary AND the `AskUserQuestion` gate must have been presented and the user must have selected "Generate SDK config now". If Step 8b was not completed, stop and run it now. Running the generator without the Step 8b gate is a skill defect.
+> **⛔ HARD STOP — Step 8b gate is a prerequisite.** Before calling `validate_profile.py` or `generate_sdk_patched.py`, confirm that Step 8b has been completed in this session — both the `show_widget` inspection summary AND the `AskUserQuestion` gate must have been presented and the user must have selected "Generate SDK Config now". If Step 8b was not completed, stop and run it now. Running the generator without the Step 8b gate is a skill defect.
 
 Before running the generator, confirm the website profile `signals` block contains **only signals the site actually supports**. Remove entries for signals with no matching site functionality entirely rather than leaving them empty or commented out — this prevents the generator emitting dead code.
 
@@ -1752,7 +1762,7 @@ If it prints `ERROR: customer.productionDomain missing from profile`, nothing wa
 >
 > CDN URL: `https://content-eu-1.content-cms.com/7fbff3c6-1b3b-4a7d-a64e-c8ebc38fa3df/dxdam/35/35cc26b5-a0ec-4e55-8c8e-a42b40cc54e1/initLogSignal.js`
 >
-> **Never use `sdk-template.js` as `--base-js`** — it lacks the signal key blocks the generator requires and will produce a broken, doubled SDK output.
+> **Never use `sdk-template.js` as `--base-js`** — it lacks the signal key blocks the generator requires and will produce a broken, doubled SDK Config output.
 
 Fix validation errors. Report warnings as review items.
 
@@ -1788,7 +1798,7 @@ When `identification` is enabled in the profile, the generator injects an `audie
 - **Always overwrites** — keeps sessionStorage current with the latest typed value so every signal posts the most recent email in its `audience` object
 - **Always returns `false`** — it is NOT an Acoustic Connect signal and is never logged to the platform
 
-> ⚠️ **Customer note (include in implementation review):** The `audience` signal block is a utility injected by the Acoustic onboarding SDK. It does not appear in the Acoustic Connect signal catalogue and is not tracked as a platform signal. Its sole purpose is to capture and persist the customer's email address so all other signals can include it in their `audience` object, enabling identity resolution across the session.
+> ⚠️ **Customer note (include in implementation review):** The `audience` signal block is a utility block that this skill adds to the SDK Config. It does not appear in the Acoustic Connect signal catalogue and is not tracked as a platform signal. Its sole purpose is to capture and persist the customer's email address so all other signals can include it in their `audience` object, enabling identity resolution across the session.
 
 Other signals retrieve the stored email via:
 ```javascript
@@ -1938,7 +1948,7 @@ Custom code is anything that adds capability the built-in modules cannot provide
 >
 > | File | Pattern | Example (Acme Retail) |
 > |------|---------|---------------|
-> | SDK config | `acoConnectSdkConfig-{domain-slug}.js` | `acoConnectSdkConfig-acmeretail.js` |
+> | SDK Config | `acoConnectSdkConfig-{domain-slug}.js` | `acoConnectSdkConfig-acmeretail.js` |
 > | Tampermonkey config | `acoConnectSdkConfig-{domain-slug}.tamperMonkeyConfig.js` | `acoConnectSdkConfig-acmeretail.tamperMonkeyConfig.js` |
 > | Signal config JSON | `{customer-slug}-customer-signal-config.json` | `acme-retail-us-customer-signal-config.json` |
 > | Implementation review | `{customer-slug}-implementation-review.md` | `acme-retail-us-implementation-review.md` |
@@ -1953,14 +1963,14 @@ Custom code is anything that adds capability the built-in modules cannot provide
 
 The generator produces:
 
-- `acoConnectSdkConfig-<domain-slug>.js` — configured SDK config; `<domain-slug>` is derived from the production domain (e.g. `www2.acmeretail.com` → `acmeretail`)
-- `acoConnectSdkConfig-<domain-slug>.tamperMonkeyConfig.js` — lightweight Tampermonkey `@require` script (loads the config from disk; no SDK code inlined)
+- `acoConnectSdkConfig-<domain-slug>.js` — configured SDK Config; `<domain-slug>` is derived from the production domain (e.g. `www2.acmeretail.com` → `acmeretail`)
+- `acoConnectSdkConfig-<domain-slug>.tamperMonkeyConfig.js` — lightweight Tampermonkey `@require` script (loads the SDK Config from disk; no SDK Config code inlined)
 - `<customer-slug>-customer-signal-config.json`
 - `<customer-slug>-implementation-review.md`
 
-**After generation — persist SDK config state to profile**
+**After generation — persist SDK Config state to profile**
 
-`generate_sdk_patched.py` prints a JSON result on success. Take its `bundle` value (the absolute path of the SDK file it just wrote) and substitute it for `<BUNDLE_PATH>` below. Do not construct this path by hand.
+`generate_sdk_patched.py` prints a JSON result on success. Take its `bundle` value (the absolute path of the SDK Config file it just wrote) and substitute it for `<BUNDLE_PATH>` below. Do not construct this path by hand.
 
 Immediately after a successful generation, write the config state back to the website profile so the skill can resume from the validation step on a future run without re-running the full onboarding:
 
@@ -2040,7 +2050,7 @@ Then show the file summary widget — substitute `SLUG` with the actual domain s
 
 ```html
 <div style="padding:0.75rem 0;font-family:var(--font-sans)">
-  <div style="font-size:13px;font-weight:600;color:var(--color-text-primary);margin-bottom:14px">SDK config generated ✅</div>
+  <div style="font-size:13px;font-weight:600;color:var(--color-text-primary);margin-bottom:14px">SDK Config generated ✅</div>
   <table style="width:100%;border-collapse:collapse;font-size:12px">
     <thead>
       <tr style="border-bottom:1px solid var(--color-border-tertiary)">
@@ -2051,7 +2061,7 @@ Then show the file summary widget — substitute `SLUG` with the actual domain s
     <tbody>
       <tr style="border-bottom:1px solid var(--color-border-tertiary)">
         <td style="padding:8px;font-family:monospace;color:#706CFF">acoConnectSdkConfig-SLUG.js</td>
-        <td style="padding:8px;color:var(--color-text-secondary)">SDK config. Replace in Tampermonkey folder to update.</td>
+        <td style="padding:8px;color:var(--color-text-secondary)">SDK Config. Replace in Tampermonkey folder to update.</td>
       </tr>
       <tr style="border-bottom:1px solid var(--color-border-tertiary)">
         <td style="padding:8px;font-family:monospace;color:#706CFF">acoConnectSdkConfig-SLUG.tamperMonkeyConfig.js</td>
@@ -2078,10 +2088,10 @@ After generation, also create **`How to test and validate the data.md`** in the 
 **Section: Method 1 — TamperMonkey**
 
 The generator produces two files for Tampermonkey testing:
-- `acoConnectSdkConfig-<domain-slug>.js` — the full configured SDK config
+- `acoConnectSdkConfig-<domain-slug>.js` — the full configured SDK Config
 - `acoConnectSdkConfig-<domain-slug>.tamperMonkeyConfig.js` — a lightweight userscript that `@require`-loads the config from the local file system
 
-The `.user.js` file does NOT embed the SDK — it uses `@require file:///...` to load the config from disk. This means updating the SDK for a new round only requires replacing the `.js` file; no Tampermonkey script reinstall is needed.
+The `.user.js` file does NOT embed the SDK Config — it uses `@require file:///...` to load the config from disk. This means updating the SDK Config for a new round only requires replacing the `.js` file; no Tampermonkey script reinstall is needed.
 
 Write these as literal numbered steps (substitute the real domain-slug/domain):
 
@@ -2090,10 +2100,10 @@ Write these as literal numbered steps (substitute the real domain-slug/domain):
 3. Open the Tampermonkey dashboard → **Utilities** tab → **Import from file**.
 4. Select `acoConnectSdkConfig-<domain-slug>.tamperMonkeyConfig.js` from this output folder.
 5. Click **Install**.
-6. Visit `<productionDomain>` in Chrome — the SDK now loads automatically on every page of the site.
+6. Visit `<productionDomain>` in Chrome — the SDK Config (and, through it, the SDK) now loads automatically on every page of the site.
 7. Open DevTools (F12 or Cmd+Opt+I) → **Console** tab. This is where to watch for signals — see "Where to look in the console" below.
 8. This config currently has `fakeSignals: true` (test/console mode) — no data reaches Acoustic yet, signals only print to console.
-9. **To update the SDK for a new round:** regenerate `acoConnectSdkConfig-<domain-slug>.js` and save it to the same path — the Tampermonkey script will pick it up automatically on the next page reload. No script reinstall needed.
+9. **To update the SDK Config for a new round:** regenerate `acoConnectSdkConfig-<domain-slug>.js` and save it to the same path — the Tampermonkey script will pick it up automatically on the next page reload. No script reinstall needed.
 10. **To later switch to real mode** (send actual data to Connect): regenerate with `settings.mode = "production"` — the new config will have `fakeSignals: false`.
 
 **Section: Method 2 — Chrome DevTools Override**
@@ -2103,7 +2113,7 @@ No extension required. Write these as literal numbered steps:
 1. Open DevTools (F12 or Cmd+Opt+I) → **Sources** tab → **Overrides** sub-tab (click the `»` overflow arrow in the left sidebar if it isn't visible).
 2. Click **"Select folder for overrides"** → choose or create any empty local folder (e.g. a new folder on your Desktop) → click **Allow** when Chrome asks for filesystem permission.
 3. Go to the **Network** tab and reload `<productionDomain>`.
-4. In the Network list, find the request for the SDK config file (its URL ends in the delivery filename, e.g. `acoConnectSdkConfig-<slug>.js`).
+4. In the Network list, find the request for the SDK Config file (its URL ends in the delivery filename, e.g. `acoConnectSdkConfig-<slug>.js`).
 5. Right-click that request → **"Override content."** DevTools copies the live response into your override folder and opens it in the Sources editor.
 6. Select all the content in that editor (Ctrl+A / Cmd+A) and replace it with the full contents of `acoConnectSdkConfig-<slug>.js` from this output folder. Save (Ctrl+S / Cmd+S).
 7. Reload the page. Chrome now serves your local file instead of the real network response, every time that URL is requested.
@@ -2113,21 +2123,21 @@ No extension required. Write these as literal numbered steps:
 
 **Section: Where to look in the console for fake signals**
 
-Whichever method above was used, once the SDK is loaded:
+Whichever method above was used, once the SDK Config is loaded:
 
 1. Open DevTools → **Console** tab and keep it open while you browse the site.
 2. Browse normally — view a product, search, add something to the cart, sign in, etc.
 3. Each time a configured signal fires, a line prints in this exact format: `Acoustic Connect: Type 5 fake <signalType> signal 🥸` — e.g. `Acoustic Connect: Type 5 fake productView signal 🥸`. This is the confirmation that signal would have fired for real.
-4. If nothing prints while browsing, check that the console filter (top of the panel) isn't set to hide "log" level messages, and confirm the SDK initialized (see "Verifying the SDK is loaded" below) before assuming a signal is missing.
+4. If nothing prints while browsing, check that the console filter (top of the panel) isn't set to hide "log" level messages, and confirm the SDK Config loaded and the SDK initialized (see "Verifying the SDK Config is loaded" below) before assuming a signal is missing.
 5. Once `fakeSignals` is switched to `false` (real mode), these lines stop appearing in the console — instead, look in Acoustic Connect's Signal Management or Session Replay dashboard, since the data is now actually being sent, not just logged.
 
-Also include sections: **Verifying the SDK is loaded**, **What to look for in the console** (type 2/4/5 table), and **Key journeys to validate** (per-signal table). Do NOT include a "Switching to production mode" section — the skill handles this interactively in the validation step below.
+Also include sections: **Verifying the SDK Config is loaded**, **What to look for in the console** (type 2/4/5 table), and **Key journeys to validate** (per-signal table). Do NOT include a "Switching to production mode" section — the skill handles this interactively in the validation step below.
 
 **Validation gate — per-signal matrix**
 
 > ⚠️ **GUARDRAIL — mandatory stop after generation.**
 >
-> After SDK generation and test-guide creation this is the **only** next action. Do not:
+> After SDK Config generation and test-guide creation this is the **only** next action. Do not:
 > - Proceed to Step 10 (upload)
 > - Summarise what was generated
 > - Ask any other question
@@ -2262,7 +2272,7 @@ This is information only. It adds no option, and the matrix routing is unchanged
     Select a result for every signal you tested. Escalated signals are shown for reference.
   </div>
   <div style="font-size:11px;color:var(--color-text-secondary);margin-bottom:14px">
-    When every signal is resolved, submitting switches the SDK config to production mode (<code>fakeSignals: false</code>).
+    When every signal is resolved, submitting switches the SDK Config to production mode (<code>fakeSignals: false</code>).
   </div>
 
   <div id="matrix" style="margin-bottom:16px">
@@ -2623,7 +2633,7 @@ If any signals remain `blocked` or `not_tested` after the follow-ups, show one e
     but will not block the remaining workflow.
   </div>
   <div style="font-size:11px;color:var(--color-text-secondary);margin-bottom:8px">
-    If every other signal is resolved, continuing switches the SDK config to production mode (<code>fakeSignals: false</code>).
+    If every other signal is resolved, continuing switches the SDK Config to production mode (<code>fakeSignals: false</code>).
   </div>
   <!-- list blocked/not_tested signals here -->
   <div style="display:flex;gap:8px;margin-top:14px">
@@ -2709,9 +2719,9 @@ If no improved evidence is found, set `correctionResult: 'no_better_evidence_fou
 
 ---
 
-**SI-G: Regenerate SDK for corrected signals**
+**SI-G: Regenerate the SDK Config for corrected signals**
 
-After updating the profile with any improved mappings, regenerate the SDK in test mode (same command as Step 9 Step B), then update `sdkBundle.path` and `sdkBundle.generatedAt` from the generator's JSON output (`bundle`). Call `mcp__cowork__present_files` with the regenerated `acoConnectSdkConfig-<domain-slug>.js` only. Then show the `signal_retest_bundle` widget (title: `signal_retest_bundle`, loading: `"Preparing corrected config…"`). Substitute `CORRECTED_SIGNAL_ROWS` with one row per signal in `to_reinspect` and `SDK_FILENAME` with the file name:
+After updating the profile with any improved mappings, regenerate the SDK Config in test mode (same command as Step 9 Step B), then update `sdkBundle.path` and `sdkBundle.generatedAt` from the generator's JSON output (`bundle`). Call `mcp__cowork__present_files` with the regenerated `acoConnectSdkConfig-<domain-slug>.js` only. Then show the `signal_retest_bundle` widget (title: `signal_retest_bundle`, loading: `"Preparing corrected config…"`). Substitute `CORRECTED_SIGNAL_ROWS` with one row per signal in `to_reinspect` and `SDK_FILENAME` with the file name:
 
 ```html
 <div style="padding:0.75rem 0;font-family:var(--font-sans)">
@@ -2764,7 +2774,7 @@ retest_rows_html = "\n".join(retest_rows)
 print(retest_rows_html)
 ```
 
-Show with `mcp__visualize__show_widget` (title: `signal_retest_matrix`, loading: `"Loading retest…"`). Use the same `submitMatrix` JS pattern as the main matrix but submit as `'RetestMatrix: {...}'`. Include the same line as the main matrix: "When every signal is resolved, submitting switches the SDK config to production mode (`fakeSignals: false`)."
+Show with `mcp__visualize__show_widget` (title: `signal_retest_matrix`, loading: `"Loading retest…"`). Use the same `submitMatrix` JS pattern as the main matrix but submit as `'RetestMatrix: {...}'`. Include the same line as the main matrix: "When every signal is resolved, submitting switches the SDK Config to production mode (`fakeSignals: false`)."
 
 **Parse `RetestMatrix` response and update profile:**
 
@@ -2921,7 +2931,7 @@ profile_path.write_text(json.dumps(profile, indent=2))
 print('mode set to production')
 ```
 
-2. **Regenerate the SDK config** with `generate_sdk_patched.py`, exactly as in Step 9 Step B (same `--base-js assets/initLogSignal.js` and the same `--out` folder), now with `settings.mode = "production"`. If `validate_profile.py` reports errors in production mode (required mappings not confirmed), stop and show them as a single blocker line; do not switch the mode back to fake it. Never use `generate_sdk.py` here: it skips the TODO hard-block, the audience signal and the privacy-target update. The generator sets `fakeSignals: false`, `errorLog: false`, `eventLog: false`, `signalsLog: true`. If it exits with code 2, resolve the TODOs exactly as in Step 9 Step C. Confirm the output file flags before proceeding.
+2. **Regenerate the SDK Config** with `generate_sdk_patched.py`, exactly as in Step 9 Step B (same `--base-js assets/initLogSignal.js` and the same `--out` folder), now with `settings.mode = "production"`. If `validate_profile.py` reports errors in production mode (required mappings not confirmed), stop and show them as a single blocker line; do not switch the mode back to fake it. Never use `generate_sdk.py` here: it skips the TODO hard-block, the audience signal and the privacy-target update. The generator sets `fakeSignals: false`, `errorLog: false`, `eventLog: false`, `signalsLog: true`. If it exits with code 2, resolve the TODOs exactly as in Step 9 Step C. Confirm the output file flags before proceeding.
 
 3. **Run Step 12 (JS review)** — confirm `fakeSignals: false` and `errorLog: false` in the regenerated file. This is a mandatory check. Do not upload a config still showing `fakeSignals: true`.
 
@@ -2958,7 +2968,7 @@ Treat identically to "Not yet — come back later". Write the one sentence. Stop
 
 > ⛔ **HARD GATE — Step 10 pre-conditions:** Step 10 (CMS upload) may run ONLY when ALL of the following are true: (1) `step11Complete = true`, (2) `step12Complete = true`, (3) `step13Complete = true`, (4) `deploymentChoice === 'acoustic_cms'`. No route — production flip, regenerate, re-upload, or any other — may bypass this gate.
 
-### 10. Upload SDK to the Media Gallery (Connect CMS)
+### 10. Upload the SDK Config to the Media Gallery (Connect CMS)
 
 > ⛔ **HARD GATE — Steps 11, 12, 13, and Step 10-pre (Option 2 selected) must all be complete before this step runs.** Enhance functions must be written (Step 11), the generated JS reviewed (Step 12), signals verified in the browser (Step 13), and the user must have explicitly selected "Host it in the Media Gallery (Connect CMS)" in Step 10-pre. Starting the upload before all four are done is a skill defect. If any are incomplete, return to the missing step first.
 
@@ -2974,7 +2984,7 @@ Before starting the upload, call `mcp__visualize__show_widget` (title: `upload_l
     </div>
     <div>
       <div style="font-size:14px;font-weight:600;color:var(--color-text-primary)">Sign in to Acoustic Connect</div>
-      <div style="font-size:12px;color:var(--color-text-tertiary);margin-top:4px">Please make sure you're signed in to <strong>app.goacoustic.com</strong> in Chrome before we upload the SDK config to the Media Gallery (Connect CMS).</div>
+      <div style="font-size:12px;color:var(--color-text-tertiary);margin-top:4px">Please make sure you're signed in to <strong>app.goacoustic.com</strong> in Chrome before we upload the SDK Config to the Media Gallery (Connect CMS).</div>
     </div>
   </div>
   <button onclick="sendPrompt('I am signed in to Acoustic Connect — start the upload')" style="width:100%;padding:10px 16px;background:#1F1E5D;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:500;cursor:pointer;font-family:inherit">
@@ -3126,16 +3136,16 @@ Then use `mcp__Claude_in_Chrome__get_page_text` to read the JSON response.
 
 > ⚠️ **URL preservation rule:** If the asset is found, always use Step B2. Creating a new asset when one already exists would invalidate the customer's live GTM tag or `<script src>`.
 
-**Step B — Upload SDK to the Media Gallery (Connect CMS) (new asset — direct API)**
+**Step B — Upload the SDK Config to the Media Gallery (Connect CMS) (new asset — direct API)**
 
 Uses the Acoustic Connect CMS REST API directly from within the authenticated browser tab. No file picker, no iframe, no modal interaction. This approach was proven against a live EU tenant on 2026-07-20.
 
-> **Narration rule — HARD STOP:** Immediately before starting any upload tool calls, call `mcp__visualize__show_widget` (title: `sdk_upload_progress`, loading: `"Uploading SDK config…"`) with the widget below. After that widget renders, execute B-3, B-3b, and B-4 **in complete silence** — zero prose, zero result echoes, zero confirmations between sub-steps. No chunk injection confirmations, no resource IDs, no asset IDs, no mediaIds, no "All N chunks injected" messages, no "Session 200 ✅" lines. Silence means silence: every word between the widget call and the final profile write is a T-11 defect. If a sub-step fails, emit the HTTP status code only. After the profile is written, emit `"Done — profile updated."` only.
+> **Narration rule — HARD STOP:** Immediately before starting any upload tool calls, call `mcp__visualize__show_widget` (title: `sdk_upload_progress`, loading: `"Uploading SDK Config…"`) with the widget below. After that widget renders, execute B-3, B-3b, and B-4 **in complete silence** — zero prose, zero result echoes, zero confirmations between sub-steps. No chunk injection confirmations, no resource IDs, no asset IDs, no mediaIds, no "All N chunks injected" messages, no "Session 200 ✅" lines. Silence means silence: every word between the widget call and the final profile write is a T-11 defect. If a sub-step fails, emit the HTTP status code only. After the profile is written, emit `"Done — profile updated."` only.
 >
 > ```html
 > <div style="padding:1.25rem 1.5rem;font-family:var(--font-sans);max-width:400px;display:flex;align-items:center;gap:14px">
 >   <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#706CFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;animation:spin 1.4s linear infinite"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
->   <span style="font-size:14px;color:var(--color-text-primary);font-weight:500">SDK config is being uploaded. Please wait.</span>
+>   <span style="font-size:14px;color:var(--color-text-primary);font-weight:500">SDK Config is being uploaded. Please wait.</span>
 >   <style>@keyframes spin{to{transform:rotate(360deg)}}</style>
 > </div>
 > ```
@@ -3186,7 +3196,7 @@ Read `window.__sessionCheck` after ~3s. If `200`, proceed. If `401` or `403`, ca
 
 After the user clicks the button, re-probe once. If still 403, emit `"Session still returning 403 — please check you are in the correct org."` and stop.
 
-The SDK config is ~40KB — too large for a single `javascript_tool` call. Split it into 5 chunks (~8KB each), inject into `window.__c[]`, join, then POST.
+The SDK Config is ~40KB — too large for a single `javascript_tool` call. Split it into 5 chunks (~8KB each), inject into `window.__c[]`, join, then POST.
 
 **B-1: Read and split the config using bash**
 
@@ -3195,7 +3205,7 @@ python3 - <<'EOF'
 import math, re, sys
 import glob as _g
 _out = sorted(_g.glob('/sessions/*/mnt/sdk-config-assistant/*/acoConnectSdkConfig-{SLUG}.js'), key=__import__('os').path.getmtime, reverse=True)
-if not _out: sys.exit('SDK config not found under sdk-config-assistant/*/ for {SLUG}')
+if not _out: sys.exit('SDK Config not found under sdk-config-assistant/*/ for {SLUG}')
 path = _out[0]
 content = open(path).read()
 n = 5
@@ -3212,7 +3222,7 @@ Replace `{SLUG}` with the actual slug (e.g. `acmeretail`). This verifies the fil
 
 **B-2: Encode and inject via `javascript_tool` — base64 method (required)**
 
-> **Why base64, not raw text:** The SDK config contains backticks, `${...}` template expressions, and backslashes. Embedding raw JS in a template literal inside a `javascript_tool` call requires three levels of escaping, which is error-prone and breaks on regeneration. Base64 encoding eliminates all escaping — only `[A-Za-z0-9+/=]` characters are ever injected. This approach is proven against production configs up to ~46 KB.
+> **Why base64, not raw text:** The SDK Config contains backticks, `${...}` template expressions, and backslashes. Embedding raw JS in a template literal inside a `javascript_tool` call requires three levels of escaping, which is error-prone and breaks on regeneration. Base64 encoding eliminates all escaping — only `[A-Za-z0-9+/=]` characters are ever injected. This approach is proven against production configs up to ~46 KB.
 
 **Step 1 — Encode the config to base64 in bash:**
 
@@ -3265,7 +3275,7 @@ The return value (e.g. `"c0p0: 2000"`) confirms the running byte count. Continue
 
 > **Important — async result capture:** `javascript_tool` does not automatically await top-level Promises. Store the result in `window.__uploadResult` and read it in a follow-up call after ~5 seconds.
 >
-> **Why base64 decode + Blob:** The SDK config contains backticks and `${...}` template expressions. Injecting raw text requires escaping; base64 does not. `atob()` decodes the assembled base64 string, a `Uint8Array` converts it to binary, and a `Blob` carries it as `application/javascript`. This is the proven pattern for production configs up to ~46 KB. Never use `window.__c` or send raw `jsContent` — use this approach only.
+> **Why base64 decode + Blob:** The SDK Config contains backticks and `${...}` template expressions. Injecting raw text requires escaping; base64 does not. `atob()` decodes the assembled base64 string, a `Uint8Array` converts it to binary, and a `Blob` carries it as `application/javascript`. This is the proven pattern for production configs up to ~46 KB. Never use `window.__c` or send raw `jsContent` — use this approach only.
 
 ```js
 // Call 1 — join base64 chunks, decode, and POST to /resources
@@ -3603,7 +3613,7 @@ Expect `publishStatus: "available"`. If not yet available, wait 5s and retry onc
 ```html
 <div style="padding:0.75rem 0;font-family:var(--font-sans)">
   <div style="font-size:13px;font-weight:600;color:var(--color-text-primary);margin-bottom:12px">
-    SDK updated ✅
+    SDK Config updated ✅
   </div>
   <div style="display:flex;flex-direction:column;gap:6px">
     <div style="background:var(--color-background-secondary);border-radius:8px;padding:8px 14px;font-size:12px">
@@ -3679,7 +3689,7 @@ If `deliveryUrl` is null (rare — the page loaded before performance entries we
 ```html
 <div style="padding:0.75rem 0;font-family:var(--font-sans)">
   <div style="font-size:13px;font-weight:600;color:var(--color-text-primary);margin-bottom:12px">
-    SDK uploaded to the Media Gallery (Connect CMS) ✅
+    SDK Config uploaded to the Media Gallery (Connect CMS) ✅
   </div>
   <div style="display:flex;flex-direction:column;gap:8px">
     <div style="background:var(--color-background-secondary);border-radius:8px;padding:10px 14px">
@@ -3725,7 +3735,7 @@ If `escalated` is non-empty, show an additional `show_widget` (title: `delivery_
   <div style="background:#FFF8E8;border-left:3px solid #F0C040;border-radius:8px;padding:12px 16px">
     <div style="font-size:12px;font-weight:600;color:#7A6800;margin-bottom:8px">⚠️ Signals requiring Acoustic Services assistance</div>
     <div style="font-size:11px;color:#7A6800;margin-bottom:10px">
-      The following signals were not configured by this skill. Please provide the SDK config above to your Acoustic Services contact so they can assist:
+      The following signals were not configured by this skill. Please provide the SDK Config above to your Acoustic Services contact so they can assist:
     </div>
     <div style="display:flex;flex-direction:column;gap:4px;margin-bottom:10px">
       <!-- ESCALATED_SIGNAL_ROWS -->
@@ -3739,7 +3749,7 @@ If `escalated` is non-empty, show an additional `show_widget` (title: `delivery_
 </div>
 ```
 
-> **If the delivery URL cannot be retrieved programmatically** (e.g. performance entries are empty after two retries): tell the user to click the three-dot menu on the SDK row in the content library → **"API information"**, and share the Delivery URL. Stay on `https://app.goacoustic.com/connect/Content/content-library` — do not navigate away. Then present it using the widget above.
+> **If the delivery URL cannot be retrieved programmatically** (e.g. performance entries are empty after two retries): tell the user to click the three-dot menu on the SDK Config row in the content library → **"API information"**, and share the Delivery URL. Stay on `https://app.goacoustic.com/connect/Content/content-library` — do not navigate away. Then present it using the widget above.
 
 **Persist profile after upload** — save all delivery fields back to the website profile JSON and write it to the persistent profiles index so it can be reused on future runs.
 
@@ -3805,7 +3815,7 @@ signal_status = profile["acoustic"].get("signalStatus", {})
 for sig, st in signal_status.items():
     print(f"  {sig}: completed={st.get('completed')}, result={st.get('validationResult','pending')}, attempts={st.get('attempts',0)}")
 
-# Mark the overall SDK configuration as complete
+# Mark the overall SDK Config as complete
 profile["acoustic"]["sdkConfigurationComplete"] = True
 
 # Write updated profile back
@@ -3934,14 +3944,14 @@ Show the deployment choice widget using `mcp__visualize__show_widget` (title: `d
 .btn-cont{background:#706CFF;color:#fff;border:none;border-radius:8px;padding:9px 20px;font-size:12px;font-weight:600;width:100%;margin-top:12px;cursor:pointer;transition:opacity .15s;font-family:inherit}
 </style>
 <div class="ep">
-  <div class="section-title">How would you like to deploy the SDK config?</div>
-  <div class="section-sub">Choose how the customer's SDK config file will be served to their website.</div>
+  <div class="section-title">How would you like to deploy the SDK Config?</div>
+  <div class="section-sub">Choose how the customer's SDK Config file will be served to their website.</div>
   <div class="pills" id="dp">
     <button type="button" class="pill sel" data-value="download_and_host" onclick="sp(this)">
       <span class="chk" aria-hidden="true">✓</span>
       <div>
         <div class="pill-label">⬇ Download and host it <span class="default-badge">Recommended</span></div>
-        <div class="pill-desc">Hand the SDK config file over for the customer to upload to their own web server.</div>
+        <div class="pill-desc">Hand the SDK Config file over for the customer to upload to their own web server.</div>
       </div>
     </button>
     <button type="button" class="pill" data-value="other_options" onclick="sp(this)">
@@ -3965,13 +3975,13 @@ function sub(){sendPrompt('Deployment choice: '+document.getElementById('f-deplo
 
 #### When `sendPrompt` fires `'Deployment choice: download_and_host'`
 
-Call `mcp__cowork__present_files` with the SDK config file path (the `acoConnectSdkConfig-<slug>.js` file in `sdk-config-assistant/<host>/`).
+Call `mcp__cowork__present_files` with the SDK Config file path (the `acoConnectSdkConfig-<slug>.js` file in `sdk-config-assistant/<host>/`).
 
 Then show the hosting instructions widget using `mcp__visualize__show_widget` (title: `deployment_instructions`, loading: `"Loading hosting instructions…"`). Substitute `<FILENAME>` with the actual config filename (e.g. `acoConnectSdkConfig-acmeretail.js`):
 
 ```html
 <div style="font-family:var(--font-sans);padding:.75rem 0;max-width:540px">
-  <div style="font-size:14px;font-weight:600;color:var(--color-text-primary);margin-bottom:4px">Deploy the Connect SDK config on your website</div>
+  <div style="font-size:14px;font-weight:600;color:var(--color-text-primary);margin-bottom:4px">Deploy the Connect SDK Config on your website</div>
   <div style="font-size:12px;color:var(--color-text-secondary);margin-bottom:16px">Follow these steps to host the customised JavaScript file on your web server.</div>
   <div style="display:flex;flex-direction:column;gap:12px">
     <div style="display:flex;gap:12px;align-items:flex-start">
@@ -3989,7 +3999,7 @@ Then show the hosting instructions widget using `mcp__visualize__show_widget` (t
       <div style="font-size:12px;color:var(--color-text-primary);padding-top:2px">Push the changes to the server.</div>
     </div>
   </div>
-  <div style="margin-top:14px;background:#FEF9C3;border:1px solid #FDE68A;border-radius:8px;padding:10px 14px;font-size:11px;color:#854D0E"><strong>⚠ Warning</strong> — If possible, avoid bundling the Connect SDK config JavaScript with other JavaScript files.</div>
+  <div style="margin-top:14px;background:#FEF9C3;border:1px solid #FDE68A;border-radius:8px;padding:10px 14px;font-size:11px;color:#854D0E"><strong>⚠ Warning</strong> — If possible, avoid bundling the Connect SDK Config JavaScript with other JavaScript files.</div>
   <div style="margin-top:14px">
     <div style="font-size:12px;font-weight:600;color:var(--color-text-primary);margin-bottom:8px">Setup verification</div>
     <div style="font-size:11px;font-weight:600;color:var(--color-text-secondary);margin-bottom:4px">Basic</div>
@@ -4029,13 +4039,13 @@ Show the secondary deployment widget using `mcp__visualize__show_widget` (title:
 </style>
 <div class="ep">
   <div class="section-title">Other options on deploying the Connect Config</div>
-  <div class="section-sub">Select how you'd like to deploy the SDK config via Acoustic.</div>
+  <div class="section-sub">Select how you'd like to deploy the SDK Config via Acoustic.</div>
   <div class="pills" id="dp2">
     <button type="button" class="pill" data-value="acoustic_cms" onclick="sp(this)">
       <span class="chk" aria-hidden="true">✓</span>
       <div>
         <div class="pill-label">☁ Host it in the Media Gallery (Connect CMS)</div>
-        <div class="pill-desc">Upload the SDK config to the Media Gallery (Connect CMS). The config is served via the Acoustic CDN — the customer references it using a delivery URL in their GTM tag or page template.</div>
+        <div class="pill-desc">Upload the SDK Config to the Media Gallery (Connect CMS). The config is served via the Acoustic CDN — the customer references it using a delivery URL in their GTM tag or page template.</div>
       </div>
     </button>
   </div>
@@ -4064,7 +4074,7 @@ When `sendPrompt` fires `'Deployment other: acoustic_cms'`: proceed to **Step 10
     </div>
     <div>
       <div style="font-size:14px;font-weight:600;color:var(--color-text-primary)">Signals configured (N of N — {TIER} tier)</div>
-      <div style="font-size:11px;color:var(--color-text-tertiary);margin-top:1px">SDK config · test mode</div>
+      <div style="font-size:11px;color:var(--color-text-tertiary);margin-top:1px">SDK Config · test mode</div>
     </div>
   </div>
   <table style="width:100%;border-collapse:collapse;font-size:12px">
@@ -4173,7 +4183,7 @@ This step runs immediately after the Step 14 final response. It has four sub-ste
 
 Before showing the completion widget, write one run record to `<slug>.analytics.json`. This is a sidecar file — the operational profile (`<slug>.json`) is never modified here.
 
-**Analytics failure is non-critical.** If the bash script fails or the analytics file cannot be written, emit one concise warning line in chat and proceed immediately to 14b-B. Do not roll back the SDK work, do not alter readiness, do not re-run the upload.
+**Analytics failure is non-critical.** If the bash script fails or the analytics file cannot be written, emit one concise warning line in chat and proceed immediately to 14b-B. Do not roll back the SDK Config work, do not alter readiness, do not re-run the upload.
 
 Assemble the run record from session variables gathered during the run. Substitute every `<PLACEHOLDER>` with the actual value before running the script. Use JSON arrays (e.g. `'["a","b"]'`) for array fields; use `"true"` or `"false"` strings for booleans.
 
@@ -4392,7 +4402,7 @@ After writing (or attempting) the analytics sidecar, show a completion widget us
 - `not_ready` → icon `⚠️`, heading `"Review required before production"`
 
 **Status line rules (show only lines that are true):**
-- Show `"SDK config generated"` only if `bundleGenerated = true`
+- Show `"SDK Config generated"` only if `bundleGenerated = true`
 - Show `"Static validation passed"` only if `staticValidationPassed = true`
 - Show `"Browser verification passed"` only if `browserValidationPassed = true`
 - Show `"Uploaded to the Media Gallery (Connect CMS)"` only if `cmsUploaded = true`
@@ -4475,7 +4485,7 @@ Signal labels: `identification` → "Identification" · `accountRegistered` → 
 </style>
 <div style="padding:1.5rem;font-family:var(--font-sans);max-width:480px;margin:0 auto">
   <div style="font-size:15px;font-weight:600;color:var(--color-text-primary);margin-bottom:4px">Session feedback</div>
-  <div style="font-size:12px;color:var(--color-text-secondary);margin-bottom:16px;line-height:1.5">How would you rate the SDK config produced in this session?</div>
+  <div style="font-size:12px;color:var(--color-text-secondary);margin-bottom:16px;line-height:1.5">How would you rate the SDK Config produced in this session?</div>
 
   <input type="hidden" id="outcome-val" value="">
   <div id="outcome-pills" style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px">
@@ -4493,7 +4503,7 @@ Signal labels: `identification` → "Identification" · `accountRegistered` → 
     </button>
     <button class="pill" data-value="run_failed" onclick="sp(this)">
       <span class="chk" aria-hidden="true">✓</span>
-      <div><strong style="font-size:12px">Run failed</strong><div style="font-size:11px;color:var(--color-text-secondary);margin-top:2px">The skill could not generate or validate a usable SDK config.</div></div>
+      <div><strong style="font-size:12px">Run failed</strong><div style="font-size:11px;color:var(--color-text-secondary);margin-top:2px">The skill could not generate or validate a usable SDK Config.</div></div>
     </button>
   </div>
 
@@ -4738,7 +4748,7 @@ Show using `mcp__visualize__show_widget` (title: `feedback_saved`, loading: `"Sa
 `<span style="display:inline-block;background:#00DF8F;color:#1F1E5D;font-size:9px;font-weight:700;border-radius:4px;padding:1px 6px;margin-left:6px;vertical-align:middle;text-transform:uppercase">Recommended</span>`
 Otherwise set it to an empty string. The button is shown in both cases.
 
-**Handover signals** (used here, in E-1 and in E-3) are: every signal in `acoustic.signalStatus` whose `validationResult` is `escalated` or `blocked`, **plus** every signal named in `profile.blockers[]` (by its `signal` key) that is not `passed` in `acoustic.signalStatus`. The second group covers signals that never made it into the SDK, such as a sign-in on a separate host or an order page that could not be inspected. They have no `signalStatus` entry, so reading `signalStatus` alone misses them.
+**Handover signals** (used here, in E-1 and in E-3) are: every signal in `acoustic.signalStatus` whose `validationResult` is `escalated` or `blocked`, **plus** every signal named in `profile.blockers[]` (by its `signal` key) that is not `passed` in `acoustic.signalStatus`. The second group covers signals that never made it into the SDK Config, such as a sign-in on a separate host or an order page that could not be inspected. They have no `signalStatus` entry, so reading `signalStatus` alone misses them.
 
 **Requirement.** The coding assistant (`sdk-config-coding`) is in the same plugin but runs only in Claude Code — the Code tab of Claude Desktop, VS Code / JetBrains, or the terminal — never in Cowork. The button is always shown; the `handoff_confirm` widget tells the user where it runs before anything is copied.
 
@@ -4815,8 +4825,8 @@ Substitute `HOSTNAME` (derived as in E-2) and `ESCALATED_LINE`: when any **hando
   <div style="font-size:12px;color:var(--color-text-secondary);line-height:1.6;margin-bottom:12px">
     The coding assistant lets you hand-write and test signals against the live site. It is the sdk-config-coding skill, which comes with this same plugin, and it runs in <strong>Claude Code</strong>, not here in Cowork: the <strong>Code</strong> tab of this app, VS Code, or a terminal.<br><br>
     <strong>Needs Claude Code on your Claude account</strong> — Cowork access alone isn't enough. If this app has no Code tab, or you can't start a local session there, you don't have it yet: ask your Claude admin for access before handing off.<br><br>
-    The SDK and its report will be copied to <code>sdk-config-coding/HOSTNAME/</code> inside the folder added to this session, in test mode (<code>fakeSignals: true</code>). The files in <code>sdk-config-assistant/HOSTNAME/</code> are not changed.<br><br>
-    <strong>The handoff is one-way for code.</strong> Changes made in the coding assistant can't be brought back into this skill. Re-running this skill later produces a new SDK. The coding assistant can save a short summary of what it fixed, which this skill shows the next time you load this profile.
+    The SDK Config and its report will be copied to <code>sdk-config-coding/HOSTNAME/</code> inside the folder added to this session, in test mode (<code>fakeSignals: true</code>). The files in <code>sdk-config-assistant/HOSTNAME/</code> are not changed.<br><br>
+    <strong>The handoff is one-way for code.</strong> Changes made in the coding assistant can't be brought back into this skill. Re-running this skill later produces a new SDK Config. The coding assistant can save a short summary of what it fixed, which this skill shows the next time you load this profile.
   </div>
   <div style="font-size:12px;font-weight:600;color:var(--color-text-primary);margin-bottom:8px">Where will you continue?</div>
   <div style="display:flex;flex-direction:column;gap:8px">
@@ -4908,7 +4918,7 @@ if not host: out('failed', reason='no_domain')
 bundle_name = 'acoConnectSdkConfig-' + domain_slug(raw_domain) + '.js'
 cust_slug = slugify(cust.get('name',''))
 
-# 1. Locate this run's SDK. An exact file name never matches *.tamperMonkeyConfig.js.
+# 1. Locate this run's SDK Config. An exact file name never matches *.tamperMonkeyConfig.js.
 bp = (profile.get('acoustic',{}).get('sdkBundle',{}) or {}).get('path') or ''
 if bp and pathlib.Path(bp).name == bundle_name and pathlib.Path(bp).is_file():
     sdk = pathlib.Path(bp)
@@ -4960,12 +4970,12 @@ cfg_copy['handoffMeta']['blockersAtHandoff'] = [{k: b.get(k) for k in ('signal',
 
 # 4. Review copy with a Handoff section. The original in sdk-config-assistant/<host>/ is not changed.
 rows = ['| ' + ' | '.join([s, str(v.get('validationResult','')), str(v.get('attempts',0)), ', '.join(v.get('reasonCodes',[]) or [])]) + ' |' for s, v in ss.items()]
-rows += ['| ' + ' | '.join([b['signal'], 'blocked (not in SDK)', '0', 'blocker: ' + str(b.get('summary') or 'not stated')]) + ' |'
+rows += ['| ' + ' | '.join([b['signal'], 'blocked (not in SDK Config)', '0', 'blocker: ' + str(b.get('summary') or 'not stated')]) + ' |'
          for b in blk if b['signal'] not in ss]
 review_txt = review_src.read_text(encoding='utf-8').rstrip() + '\n\n## Handoff\n\n' + '\n'.join([
     '- **Handed off to:** sdk-config-coding',
     '- **Handed off at:** ' + iso,
-    '- **Original SDK file name:** ' + sdk.name,
+    '- **Original SDK Config file name:** ' + sdk.name,
     '- **Readiness at handoff:** ' + readiness,
     '- **Mode at handoff:** test (fakeSignals: true, errorLog: true, eventLog: false, signalsLog: true set in the handed-off copy only)',
     '', '| Signal | Result | Attempts | Reason codes |', '|---|---|---:|---|'] + rows) + '\n'
@@ -4986,7 +4996,7 @@ stage = sites/('.incoming-' + host + '-' + now.strftime('%Y%m%d-%H%M%S'))
 (stage/'handoff'/(cust_slug + '-implementation-review.md')).write_text(review_txt, encoding='utf-8')
 files = [stage/'acoconnect-loader.js', stage/'handoff'/'original-sdk.js', stage/'handoff'/(cust_slug + '-customer-signal-config.json'), stage/'handoff'/(cust_slug + '-implementation-review.md')]
 if not all(f.is_file() and f.stat().st_size > 0 for f in files): out('failed', reason='verify_failed', staging=stage.name)
-# Read each SDK copy back and compare it with the string that was meant to be written, so a short or
+# Read each SDK Config copy back and compare it with the string that was meant to be written, so a short or
 # failed write is caught before the folder is moved into place. Then confirm the loader is in test mode.
 if any(f.read_text(encoding='utf-8') != js for f in files[:2]): out('failed', reason='verify_failed', staging=stage.name)
 if not re.search(r'\bfakeSignals\s*:\s*true', files[0].read_text(encoding='utf-8')): out('failed', reason='cannot_set_test_mode', file=sdk.name)
@@ -5055,7 +5065,7 @@ Store no paths or folder names in the sidecar.
 
 ##### E-5 — Handoff complete and session close
 
-Show `mcp__visualize__show_widget` (title: `handoff_complete`, loading: `"Finishing handoff…"`). Category 1: if `show_widget` is unavailable, output the same content as plain text (≤6 lines). Substitute `NEXT_STEPS` and `OTHER_WAY` from the table below for `HANDOFF_SURFACE`, then `FOLDER` with the folder written (the `folder` value from E-3) and `BACKUP_LINE` with `<div style="font-size:11px;color:var(--color-text-secondary);margin-top:8px">Your previous folder was kept as <code>sdk-config-coding/BACKUP/</code>.</div>` when a backup was made, otherwise empty. Add `<div style="font-size:11px;color:#B25000;margin-top:8px">Note: FLAGS were not found in this SDK and were left unchanged.</div>` only when `flagsMissing` is non-empty.
+Show `mcp__visualize__show_widget` (title: `handoff_complete`, loading: `"Finishing handoff…"`). Category 1: if `show_widget` is unavailable, output the same content as plain text (≤6 lines). Substitute `NEXT_STEPS` and `OTHER_WAY` from the table below for `HANDOFF_SURFACE`, then `FOLDER` with the folder written (the `folder` value from E-3) and `BACKUP_LINE` with `<div style="font-size:11px;color:var(--color-text-secondary);margin-top:8px">Your previous folder was kept as <code>sdk-config-coding/BACKUP/</code>.</div>` when a backup was made, otherwise empty. Add `<div style="font-size:11px;color:#B25000;margin-top:8px">Note: FLAGS were not found in this SDK Config and were left unchanged.</div>` only when `flagsMissing` is non-empty.
 
 ```html
 <div style="font-family:var(--font-sans);padding:1.25rem;max-width:480px">
@@ -5064,7 +5074,7 @@ Show `mcp__visualize__show_widget` (title: `handoff_complete`, loading: `"Finish
     Copied to <code>sdk-config-coding/FOLDER/</code> inside the folder added to this session, in test mode.<br><br>
     NEXT_STEPS<br><br>
     The first time on this computer, the coding assistant walks you through a one-time Chrome setup, which ends by starting a fresh session. If it doesn't respond to "let's work on", install the sdk-config-assistant plugin in Claude Code first.<br><br>
-    When you prepare the SDK for production there, the coding assistant can save a summary of what it fixed. This skill shows it the next time you load this profile.
+    When you prepare the SDK Config for production there, the coding assistant can save a summary of what it fixed. This skill shows it the next time you load this profile.
   </div>
   <div style="font-size:11px;color:var(--color-text-secondary);margin-top:8px">OTHER_WAY</div>
   BACKUP_LINE
