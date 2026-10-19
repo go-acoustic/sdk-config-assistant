@@ -254,7 +254,7 @@ Fired after every XHR or fetch call the SDK intercepts. Requires `"ajaxListener"
             method: "POST",
             status: 200,
             ajaxResponseTime: 342,
-            response: {         // only if response logging enabled in SDK config
+            response: {         // only if response logging enabled in the SDK Config
                 orderId: "ORD-20251101-0042",
                 total: 98.44,
                 currency: "USD",
@@ -553,4 +553,4 @@ Any trigger attribute value can be a `RegExp` instead of a string:
 | Signal in console but not in Connect | Check `fakeSignals: false`. Verify `appKey`. Check Network tab for collector POST. |
 | Audience / email is empty | Identification must fire before this signal. Check `help.retrieve("userEmail")`. |
 | Ajax trigger never matches | Confirm `addAjaxListener: true` in `initLibAdv` and `"ajaxListener"` in `messageTypes`. Use `eventLog: true`. |
-| `response` is undefined in ajax enhance | Response body logging must be enabled: `log.responseData: true` in SDK ajaxListener config. |
+| `response` is undefined in ajax enhance | Response body logging must be enabled: `log.responseData: true` in the ajaxListener settings the SDK Config passes to the SDK. |

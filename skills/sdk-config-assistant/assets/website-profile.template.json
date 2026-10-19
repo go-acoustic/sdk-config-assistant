@@ -9,7 +9,7 @@
     "dataLayerName": "dataLayer"
   },
   "acoustic": {
-    "_note": "Populated automatically after SDK upload. Reused on subsequent runs — no browser re-discovery needed.",
+    "_note": "Populated automatically after SDK Config upload. Reused on subsequent runs — no browser re-discovery needed.",
     "subscriptionId": "",
     "assetUuid": "",
     "deliveryUrl": "",

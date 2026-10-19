@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate a customer SDK profile without external dependencies."""
+"""Validate a customer website profile (used to generate the SDK Config) without external dependencies."""
 
 from __future__ import annotations
 

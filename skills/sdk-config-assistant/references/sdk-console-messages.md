@@ -1,12 +1,12 @@
 # SDK Console Message Reference
 
-When the Acoustic SDK is running in test mode (`fakeSignals: true`, `eventLog: true`), it emits structured messages to the browser console. Reading these messages is the primary way to confirm signal firing, discover correct `triggers` triggers, and validate payload completeness.
+When the SDK Config is in test mode (`fakeSignals: true`, `eventLog: true`), its logging code (`initLogSignal` and the loader) writes structured messages to the browser console. These messages come from the SDK Config, not from the Acoustic SDK itself. Reading these messages is the primary way to confirm signal firing, discover correct `triggers` triggers, and validate payload completeness.
 
 ## How to see messages
 
 1. Install the Tampermonkey script on the customer site.
 2. Open DevTools → **Console**.
-3. Filter by `[ACO]` or `Acoustic Connect` to isolate SDK output.
+3. Filter by `[ACO]` or `Acoustic Connect` to isolate SDK Config output.
 4. Perform the journey actions (page load, click, form submit, search, checkout).
 
 ---
@@ -169,7 +169,7 @@ Fires when a configured signal emits. In test mode this is a fake `logSignal` ca
 
 ### Type 5 — dlListener (dataLayer push captured)
 
-When `GAdataLayerName` is set and a dataLayer push occurs, the SDK emits a Type 5 `dlListener` event. Use this to discover event names for dataLayer-triggered signals.
+When `GAdataLayerName` is set and a dataLayer push occurs, the SDK Config (`initLogSignal`) emits a Type 5 `dlListener` event. Use this to discover event names for dataLayer-triggered signals.
 
 ```json
 {

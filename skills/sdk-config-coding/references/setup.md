@@ -5,8 +5,9 @@ It is safe to re-run: every step first checks whether it is already done and off
 skip it, and the whole flow can be skipped. Most steps are **per-machine** (done once
 ever); ESLint is **per-project**.
 
-This walkthrough runs in Claude Code only. If you are in Claude Cowork or the Claude app,
-stop and tell the user to run it from Claude Code.
+This walkthrough runs in any local Claude Code session: the Code tab in Claude Desktop, the
+terminal, or VS Code / JetBrains. The skill's "Where this skill runs" checks (Cowork, cloud
+session, worktree) must have passed before this file is followed.
 
 ## When this file is read
 
@@ -139,27 +140,92 @@ user-scoped server `sdk-chrome-devtools`.
 
 ### Register
 
-Copy the launcher to its fixed location (always, so a re-run picks up plugin updates) and
-check whether the server is registered:
+Copy the launcher to its fixed location (always, so a re-run picks up plugin updates),
+check the session's `PATH` for what the MCP and its registration need, and check whether the
+server is registered. The `claude` command isn't always on `PATH`: a user who only runs
+Claude Code from Claude Desktop's Code tab may never have installed the CLI, and Desktop
+sessions take only `PATH` from the shell profile. So the check falls back to the binary
+running this session (`CLAUDE_CODE_EXECPATH`), and then to reading `~/.claude.json`:
 
 ```bash
 D="$HOME/.claude/sdk-config-coding"; mkdir -p "$D"
 cp "${CLAUDE_PLUGIN_ROOT}/skills/sdk-config-coding/bin/chrome-devtools-mcp.sh" "$D/" && chmod +x "$D/chrome-devtools-mcp.sh" && echo LAUNCHER_OK
-claude mcp get sdk-chrome-devtools >/dev/null 2>&1 && echo MCP_REGISTERED || echo MCP_MISSING
+command -v npx >/dev/null 2>&1 && echo NPX_OK || echo NPX_MISSING
+CLI=$(command -v claude 2>/dev/null); [ -z "$CLI" ] && [ -x "${CLAUDE_CODE_EXECPATH:-}" ] && CLI="$CLAUDE_CODE_EXECPATH"
+if [ -n "$CLI" ]; then
+  echo "CLI=$CLI"
+  "$CLI" mcp get sdk-chrome-devtools >/dev/null 2>&1 && echo MCP_REGISTERED || echo MCP_MISSING
+else
+  echo NO_CLI
+  node -e 'try{const d=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8"));console.log(d.mcpServers&&d.mcpServers["sdk-chrome-devtools"]?"MCP_REGISTERED":"MCP_MISSING")}catch(e){console.log("MCP_MISSING")}' "$HOME/.claude.json" 2>/dev/null || echo MCP_UNKNOWN
+fi
 ```
 
 - `LAUNCHER_OK` missing → the copy failed (check that the source path exists); stop and
   tell the user.
+- `NPX_MISSING` → Node.js isn't on this session's `PATH`, and the MCP launcher starts the
+  server with `npx`, so it can't run. Stop and tell the user. If Node.js is installed (for
+  example through nvm or Homebrew), the shell profile that puts it on `PATH` isn't the one
+  this session read: Claude Desktop reads `PATH` from the login shell profile, so the line
+  that adds Node belongs in `~/.zprofile` (or `~/.zshrc`). Fix that, or install Node.js LTS,
+  then start a new session (see "Starting a new session" below) and re-run setup. If they'd
+  rather not, mark `mcp: "skipped"` and move to Step 3. `MCP_UNKNOWN` is the same cause.
 - `MCP_REGISTERED` → carry on to "Verify".
-- `MCP_MISSING` → explain that this adds a user-level MCP server to their Claude Code
-  config (`~/.claude.json`), available in all their Claude Code sessions, and ask before
-  running:
+- `MCP_MISSING` with `CLI=<path>` → explain that this adds a user-level MCP server to their
+  Claude Code config (`~/.claude.json`), available in all their Claude Code sessions —
+  terminal, VS Code and Claude Desktop's Code tab — and ask before running it, with `CLI`
+  replaced by the printed path:
   ```bash
-  claude mcp add --scope user sdk-chrome-devtools -- "$HOME/.claude/sdk-config-coding/chrome-devtools-mcp.sh"
+  "CLI" mcp add --scope user sdk-chrome-devtools -- "$HOME/.claude/sdk-config-coding/chrome-devtools-mcp.sh"
   ```
-  A newly added server isn't loaded into the current session. Ask the user to exit and run
-  `claude --continue` to resume here, then carry on to "Verify". If they decline to
-  register it, mark `mcp: "skipped"` and move to Step 3.
+- `MCP_MISSING` with `NO_CLI` → the `claude` command isn't on this session's `PATH`, which
+  is normal when Claude Code is only used from Claude Desktop. Register the server by adding
+  it to `~/.claude.json` directly instead. Explain this the same way and ask first. The
+  script backs up the file the first time it runs
+  (`~/.claude.json.bak-sdk-config-coding`) and changes nothing if the entry already exists:
+  ```bash
+  F="$HOME/.claude.json"; [ -f "$F" ] && cp -n "$F" "$F.bak-sdk-config-coding"
+  node -e '
+  const fs = require("fs"), f = process.argv[1], cmd = process.argv[2];
+  const d = fs.existsSync(f) ? JSON.parse(fs.readFileSync(f, "utf8")) : {};
+  d.mcpServers = d.mcpServers || {};
+  if (d.mcpServers["sdk-chrome-devtools"]) { console.log("MCP_REGISTERED"); process.exit(0); }
+  d.mcpServers["sdk-chrome-devtools"] = { type: "stdio", command: cmd, args: [], env: {} };
+  fs.writeFileSync(f, JSON.stringify(d, null, 2) + "\n");
+  console.log("MCP_ADDED");' "$F" "$HOME/.claude/sdk-config-coding/chrome-devtools-mcp.sh"
+  ```
+  - `MCP_ADDED` → registered; start a new session (below).
+  - `MCP_REGISTERED` → the entry was already there (for example, added by another session
+    since the check). Nothing was written. If this session has no `sdk-chrome-devtools`
+    tools, start a new session (below); otherwise carry on to "Verify".
+  - It fails to parse the file → stop and tell the user. Never rewrite `~/.claude.json`
+    from scratch.
+
+A newly added server isn't loaded into the current session. Ask the user to start a new
+session (below), then carry on to "Verify". If the server is missing from the new session
+(no `sdk-chrome-devtools` tools), re-run this step once — the file may have been written
+over by the session that was still open — then tell the user if it is still missing. If
+they decline to register it, mark `mcp: "skipped"` and move to Step 3.
+
+### Starting a new session
+
+MCP servers load when a session starts, and how to restart depends on where Claude Code is
+running. Check:
+
+```bash
+echo "${CLAUDE_CODE_ENTRYPOINT:-unknown}"
+```
+
+- `cli` (terminal) → exit and run `claude --continue` in the same folder; the conversation
+  resumes here.
+- `claude-vscode` (VS Code) → start a new Claude Code conversation in the same folder.
+- Anything else, including Claude Desktop's Code tab → start a new **local** session in the
+  Code tab on the same folder (worktree option off). If it turns out to be a terminal, exit
+  and run `claude --continue` instead.
+
+Outside the terminal, the new session has no memory of this one, so tell the user to say
+"continue sdk-config-coding setup" in it. Setup is safe to re-run: it reads the marker and
+skips what's done.
 
 ### Verify
 
@@ -167,7 +233,8 @@ The MCP starts through `~/.claude/sdk-config-coding/chrome-devtools-mcp.sh`, whi
 the connection from `chromeMode`: `--browser-url=http://127.0.0.1:9222` for dedicated,
 `--autoConnect` for default. If `chromeMode` was just written or changed in Step 1, the
 running MCP is still on the old setting — **stop and ask the user to reconnect it** (`/mcp`
-→ select `sdk-chrome-devtools` → reconnect), or restart the session, and wait for them to
+→ select `sdk-chrome-devtools` → reconnect), or start a new session (see "Starting a new
+session" above), and wait for them to
 confirm before testing. Warn them that `/mcp` will probably already show it as connected: that's the
 old connection, and it may even work (e.g. an everyday Chrome with remote debugging on is
 reachable on 9222), but it isn't the mode they chose. Reconnect anyway.

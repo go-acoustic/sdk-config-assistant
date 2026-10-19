@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "",
   "scripts": {
-    "lint": "eslint 'sites/*/acoconnect-loader.js'"
+    "lint": "eslint 'sdk-config-coding/*/acoconnect-loader.js'"
   },
   "license": "ISC",
   "devDependencies": {

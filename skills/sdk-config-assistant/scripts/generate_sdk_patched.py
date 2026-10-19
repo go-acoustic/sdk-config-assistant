@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-Generate a configured Acoustic SDK package for a customer.
+Generate a customer's SDK Config (the JS that loads and drives the Acoustic SDK).
 
 Outputs per run:
-  acoConnectSdkConfig-<domain-slug>.js                    — SDK bundle (paste into DevTools or GTM)
+  acoConnectSdkConfig-<domain-slug>.js                    — SDK Config (paste into DevTools or GTM)
   acoConnectSdkConfig-<domain-slug>.tamperMonkeyConfig.js — lightweight Tampermonkey @require script
   <customer-slug>-customer-signal-config.json
   <customer-slug>-implementation-review.md
@@ -16,12 +16,13 @@ only needs to swap the .js file between rounds — no script reinstall needed.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import re
 import sys
 import time
 import urllib.request
-from datetime import datetime, timezone, timezone
+from datetime import datetime, timezone
 from pathlib import Path
 from textwrap import indent, dedent
 from typing import Any
@@ -32,10 +33,12 @@ BASE_INIT_LOG_SIGNAL_URL = (
     "https://content-eu-1.content-cms.com/7fbff3c6-1b3b-4a7d-a64e-c8ebc38fa3df"
     "/dxdam/35/35cc26b5-a0ec-4e55-8c8e-a42b40cc54e1/initLogSignal.js"
 )
-# initLogSignal.js is fetched automatically from BASE_INIT_LOG_SIGNAL_URL on every
-# run when --base-js is not supplied. Pass --base-js only if the CDN is unreachable
-# from the current Python environment (e.g. a sandboxed shell). No persistent copy
-# is stored in assets/.
+# initLogSignal.js ships with the skill in assets/ and is read from there.
+# INIT_LOG_SIGNAL_SHA256 is the hash of the reviewed copy in assets/. Update it in the
+# same commit as the file (see "Updating assets/initLogSignal.js" in RELEASING.md).
+# BASE_INIT_LOG_SIGNAL_URL (Acoustic's public CDN copy) is the fallback, used only
+# when neither --base-js nor assets/initLogSignal.js is available. See load_base().
+INIT_LOG_SIGNAL_SHA256 = "85016d303c00b64cb1c0fb7e0ffaab94cb89e4b1f50aaa14f8c2fcaeca93c883"
 ASSETS_DIR = Path(__file__).parent.parent / "assets"
 SDK_TEMPLATE_PATH = ASSETS_DIR / "sdk-template.js"
 SDK_INSERT_MARKER = "// InitLogsignsal here - do not remove this comment"
@@ -121,8 +124,8 @@ def _inject_helpers(js: str) -> str:
 
 
 def fetch_base_from_cdn() -> str:
-    """Fetch initLogSignal.js directly from CDN. Called when --base-js is omitted."""
-    print(f"[ACO] --base-js not supplied; fetching from CDN: {BASE_INIT_LOG_SIGNAL_URL}", file=sys.stderr)
+    """Fetch initLogSignal.js from the public CDN. Last resort in load_base()."""
+    print(f"[ACO] No usable local initLogSignal.js; fetching from CDN: {BASE_INIT_LOG_SIGNAL_URL}", file=sys.stderr)
     try:
         req = urllib.request.Request(
             BASE_INIT_LOG_SIGNAL_URL,
@@ -144,25 +147,48 @@ def fetch_base_from_cdn() -> str:
 _LOCAL_BASE_JS = ASSETS_DIR / "initLogSignal.js"
 
 
-def load_base(base_js_path: "Path | None") -> str:
-    """Load initLogSignal.js — from disk if path given, otherwise fetched from CDN.
-
-    Lookup order:
-      1. --base-js argument (explicit path)
-      2. assets/initLogSignal.js (local cache, avoids CDN in restricted envs)
-      3. CDN fetch
-    """
-    if base_js_path is None:
-        if _LOCAL_BASE_JS.exists():
-            js = _LOCAL_BASE_JS.read_text(encoding="utf-8")
-            print(f"[ACO] Loaded base JS from local cache {_LOCAL_BASE_JS} ({len(js):,} chars)", file=sys.stderr)
-            return js
-        js = fetch_base_from_cdn()
-    else:
-        js = base_js_path.read_text(encoding="utf-8")
-        print(f"[ACO] Loaded base JS from {base_js_path} ({len(js):,} chars)", file=sys.stderr)
-    js = _inject_helpers(js)
+def _read_base_file(path: Path) -> "str | None":
+    """Return the file's text if it looks like initLogSignal.js, otherwise None."""
+    try:
+        js = path.read_text(encoding="utf-8")
+    except OSError as exc:
+        print(f"[ACO] WARNING: could not read {path} ({exc})", file=sys.stderr)
+        return None
+    if "function initLogSignal" not in js:
+        print(f"[ACO] WARNING: {path} does not contain initLogSignal — ignoring it", file=sys.stderr)
+        return None
     return js
+
+
+def load_base(base_js_path: "Path | None") -> str:
+    """Load initLogSignal.js and inject the jsonLdGet helpers.
+
+    Lookup order, first usable source wins:
+      1. --base-js argument (explicit path)
+      2. assets/initLogSignal.js (shipped with the skill)
+      3. the public CDN copy (BASE_INIT_LOG_SIGNAL_URL)
+
+    A missing or invalid file falls through to the next source. The helpers are
+    injected whichever source is used.
+    """
+    js = None
+    tried = Path(base_js_path).resolve() if base_js_path is not None else None
+    if base_js_path is not None:
+        if Path(base_js_path).is_file():
+            js = _read_base_file(Path(base_js_path))
+            if js is not None:
+                print(f"[ACO] Loaded base JS from {base_js_path} ({len(js):,} chars)", file=sys.stderr)
+        else:
+            print(f"[ACO] WARNING: --base-js {base_js_path} not found — trying the next source", file=sys.stderr)
+    if js is None and tried != _LOCAL_BASE_JS.resolve() and _LOCAL_BASE_JS.is_file():
+        js = _read_base_file(_LOCAL_BASE_JS)
+        if js is not None:
+            print(f"[ACO] Loaded base JS from {_LOCAL_BASE_JS} ({len(js):,} chars)", file=sys.stderr)
+            if hashlib.sha256(_LOCAL_BASE_JS.read_bytes()).hexdigest() != INIT_LOG_SIGNAL_SHA256:
+                print("[ACO] WARNING: assets/initLogSignal.js differs from the reviewed copy (INIT_LOG_SIGNAL_SHA256)", file=sys.stderr)
+    if js is None:
+        js = fetch_base_from_cdn()
+    return _inject_helpers(js)
 
 
 def slugify(value: str) -> str:
@@ -234,6 +260,8 @@ def _field_lines(field_specs: dict[str, Any]) -> list[str]:
             continue
         chain = " || ".join(exprs)
         if field == "effect":
+            # Effect is a string enum: skip numeric/array transforms to avoid
+            # parseFloat('positive') -> NaN||'positive' accidental-correctness.
             lines.append(f"    var _eff = String({chain} || 'positive');")
             lines.append("    // default 'positive' per schema — 'neutral' is not a valid effect value")
             lines.append("    signal.effect = _eff === 'negative' ? 'negative' : 'positive';")
@@ -789,11 +817,8 @@ def configure_init_log_signal(base_js: str, profile: dict[str, Any]) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Full SDK assembly (insert into template)
+# Full SDK Config assembly (insert into template)
 # ---------------------------------------------------------------------------
-
-_PRO_TIER_NAMES = {'pro', 'connectpro'}
-
 
 def build_full_sdk(configured_init_log_signal: str, profile: dict[str, Any]) -> str:
     customer = profile.get("customer", {})
@@ -801,7 +826,7 @@ def build_full_sdk(configured_init_log_signal: str, profile: dict[str, Any]) -> 
     collector_url = customer.get("collectorUrl", "TODO")
 
     if not SDK_TEMPLATE_PATH.exists():
-        raise FileNotFoundError(f"SDK template not found: {SDK_TEMPLATE_PATH}")
+        raise FileNotFoundError(f"SDK Config template not found: {SDK_TEMPLATE_PATH}")
 
     template = SDK_TEMPLATE_PATH.read_text(encoding="utf-8")
     if SDK_INSERT_MARKER not in template:
@@ -818,7 +843,24 @@ def build_full_sdk(configured_init_log_signal: str, profile: dict[str, Any]) -> 
     _before = sdk
     sdk = re.sub(r'"Acoustic\.com webApp Connect - [^"]*"', json.dumps(build_note), sdk, count=1)
     if sdk == _before:
-        print("[ACO] WARNING: build-note substitution found no match", file=sys.stderr)
+        print("[ACO] WARNING: build-note substitution found no match — template may have changed", file=sys.stderr)
+
+    # Pro-tier: disable DOM capture, gestures, ajaxListener, overstat, mousemove, frames
+    tier = customer.get("tier", profile.get("settings", {}).get("tier", ""))
+    _PRO_TIER_NAMES = {'pro', 'connectpro'}
+    if tier.lower().replace('-', '').replace(' ', '').strip() in _PRO_TIER_NAMES:
+        pro_overrides = (
+            "\n        // Pro-tier overrides\n"
+            "        config.core.modules.gestures.enabled = false;\n"
+            "        config.core.modules.ajaxListener.enabled = false;\n"
+            "        config.core.frames = {};\n"
+            "        config.modules.replay.domCapture.enabled = false;\n"
+            "        config.core.modules.overstat.enabled = false;\n"
+            "        config.modules.replay.mousemove.enabled = false;\n"
+        )
+        sdk = sdk.replace("        return config;", pro_overrides + "        return config;", 1)
+        # addAjaxListener: false is set via initLibAdv call in sdk-template.js
+        # The ajaxListener module is already disabled above via config.core.modules.ajaxListener.enabled = false
 
     return sdk
 
@@ -829,7 +871,7 @@ def build_full_sdk(configured_init_log_signal: str, profile: dict[str, Any]) -> 
 
 def build_tampermonkey(profile: dict[str, Any], bundle_filename: str, bundle_abs_path: str) -> str:
     """
-    Build a lightweight Tampermonkey userscript that @require-loads the SDK bundle
+    Build a lightweight Tampermonkey userscript that @require-loads the SDK Config
     from the local file system.  The bundle itself (acoConnectSdkConfig-*.js) is NOT
     inlined here — Tampermonkey fetches it from the file:// URL on each page load,
     so testers only need to swap the .js file to pick up new rounds.
@@ -857,11 +899,11 @@ def build_tampermonkey(profile: dict[str, Any], bundle_filename: str, bundle_abs
 
     return dedent(f"""\
         // ==UserScript==
-        // @name         Acoustic SDK — {name} [{mode.upper()}] r{rnd}
+        // @name         Acoustic SDK Config — {name} [{mode.upper()}] r{rnd}
         // @namespace    https://acoustic.com/sdk
         // @version      1.{rnd}
-        // @description  Acoustic Tealeaf/Connect SDK for {name} — {mode} mode, round {rnd}
-        // @author       Acoustic SDK Configuration Assistant
+        // @description  Acoustic Tealeaf/Connect SDK Config for {name} — {mode} mode, round {rnd}
+        // @author       Acoustic SDK Config Assistant
         {chr(10).join(match_lines)}
         // @require      {require_url}
         // @grant        none
@@ -915,7 +957,7 @@ def review_markdown(profile: dict[str, Any], warnings: list[str], d_slug: str, b
     mode = profile["settings"]["mode"]
 
     rows = [
-        f"# SDK Implementation Review — Round {rnd}",
+        f"# SDK Config Implementation Review — Round {rnd}",
         "",
         f"- **Customer:** {customer['name']}",
         f"- **Domain:** {customer['productionDomain']}",
@@ -925,7 +967,7 @@ def review_markdown(profile: dict[str, Any], warnings: list[str], d_slug: str, b
         "",
         "---",
         "",
-        "## How to inject the SDK (Tampermonkey — recommended)",
+        "## How to inject the SDK Config (Tampermonkey — recommended)",
         "",
         f"1. Install [Tampermonkey](https://www.tampermonkey.net/) in Chrome if not already installed",
         f"2. In Tampermonkey **Settings → Security**, add your output folder to **Allowlist for @require**:",
@@ -1041,9 +1083,8 @@ def main() -> int:
         "--base-js", type=Path, required=False, default=None,
         metavar="PATH",
         help=(
-            "Path to a pre-fetched initLogSignal.js. "
-            "If omitted the script fetches it automatically from BASE_INIT_LOG_SIGNAL_URL. "
-            "Supply this flag only when the CDN is unreachable from the current environment."
+            "Path to initLogSignal.js. If omitted, missing or invalid, the script uses "
+            "assets/initLogSignal.js, then the public CDN copy (BASE_INIT_LOG_SIGNAL_URL)."
         ),
     )
     args = parser.parse_args()
@@ -1065,7 +1106,7 @@ def main() -> int:
     slug = slugify(profile["customer"]["name"])
     d_slug = domain_slug(profile["customer"].get("productionDomain", ""))
     # OUTPUT NAMING CONVENTION — DO NOT CHANGE
-    # SDK bundle:           acoConnectSdkConfig-{domain-slug}.js
+    # SDK Config:           acoConnectSdkConfig-{domain-slug}.js
     # Tampermonkey config:  acoConnectSdkConfig-{domain-slug}.tamperMonkeyConfig.js
     # domain-slug derived from productionDomain (e.g. www2.acmeretail.com → acmeretail)
     bundle_name = f"acoConnectSdkConfig-{d_slug}.js"

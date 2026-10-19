@@ -1,9 +1,19 @@
 ---
 name: sdk-config-assistant
-description: Inspect live customer websites with an available browser automation tool and generate safe, review-ready Acoustic Tealeaf/Connect JavaScript signal configurations and reusable customer mapping JSON. Use for new customer SDK onboarding, auditing or updating initLogSignal(), mapping page/product/cart/order/form/search/media signals, inspecting runtime DOM/dataLayer/network state, validating payloads, or producing implementation and test plans. Only supported in Claude Cowork (for now).
+description: Inspect live customer websites with an available browser automation tool and generate safe, review-ready Acoustic Tealeaf/Connect JavaScript signal configurations and reusable customer mapping JSON. Use for new customer SDK Config onboarding, auditing or updating initLogSignal(), mapping page/product/cart/order/form/search/media signals, inspecting runtime DOM/dataLayer/network state, validating payloads, or producing implementation and test plans. Only supported in Claude Cowork (for now).
 ---
 
 # SDK-config-assistant
+
+
+## SDK vs SDK Config — never confuse them (hard rule)
+
+> ⛔ **HARD RULE — terminology.** Two different things are involved, and every message, widget, file, report and comment must name them correctly. Calling the SDK Config "the SDK" is a defect.
+>
+> - **SDK** — Acoustic's JavaScript library (`acoconnect.js` / `acoconnect.min.js`, `window.TLT`). It is the same for every customer and knows how to send data to Acoustic. It is owned by Acoustic, and versioned and deployed to the Acoustic CDN by Acoustic P&E. This skill and sdk-config-coding never create, edit, version or deploy it.
+> - **SDK Config** — the customer-specific JavaScript glue code that runs in the browser, maps actions on the customer's website to the SDK's programmatic interface (`initLogSignal`, triggers, `enhance`) and calls the SDK to send them to Acoustic. It is created by Acoustic (typically Professional Services, sometimes implementation or a CSM) or by the customer, and it is owned by the customer, who can delegate its maintenance to Acoustic under a service contract. It is deployed to the customer's CDN, or uploaded to the Acoustic Media Library in their subscription and served by the Acoustic CDN on their behalf. This is what this skill generates, hand over, fix and prepare for production.
+>
+> Use "SDK Config" for the second, every time — never "the SDK", "SDK bundle", "SDK loader", "SDK files" or "handed-off SDK" for it. Use "SDK" only for Acoustic's library. Existing file names and JSON keys keep their names because other files depend on them (`acoConnectSdkConfig-<domain>.js`, `acoconnect-loader.js`, `handoff/original-sdk.js`, `originalSdkFileName`, `acoustic.sdkBundle`): they all hold or describe the SDK Config, and must be described that way.
 
 
 ## Guardrails — read before executing any step
@@ -19,7 +29,7 @@ The defined path is:
 ```
 Step 0 (new vs existing)
   → Chrome pre-flight
-  → Step 1 (scope intake)
+  → Step 1 (scope intake)          ← Step 1a-R writes the start record right after 1a
   → Steps 2–8 (inspect + profile)
   → Step 8b gate (inspect complete — mandatory stop)
   → Step 9 (validate + generate)
@@ -44,7 +54,7 @@ Step 0 (new vs existing)
 - **Never add extra fields to a defined widget** — every intake widget has a verbatim HTML template in this skill. Render it exactly as written. Fields like `appKey`, `collectorUrl`, `environment`, `platform`, `iframes`, and `notes` each belong to a specific step. Adding them to a different step's widget (e.g. putting `appKey` in the Step 1a form) is a skill defect. If in doubt, read the step definition before rendering.
 - **`appKey` and `collectorUrl` are never collected in the Step 1a form.** They are handled in Step 1c, which first asks the user whether to retrieve them automatically from Acoustic Connect or supply them manually. Skipping Step 1c or bypassing the auto-retrieve option is a skill defect.
 - Do not resume mid-flow from a prior session without first running Step 0 and the Chrome pre-flight check.
-- **All user-facing blockers must use `mcp__visualize__show_widget`.** If the skill hits a blocker at any point (unauthenticated session, missing prerequisite, unexpected page state, tool unavailable), it must render a defined blocker widget — never output a prose message. If no widget template exists for the blocker, stop and surface the issue in chat with a single sentence only, then wait for instructions. **That single-sentence rule applies only when no template and no fallback exist for the blocker** — it is not a shortcut around a blocker that has either. `workspace_required` has both a widget and a verbatim fallback, so a one-line summary of it ("Waiting for a folder to be added", "I'll wait for you to add a folder, then click continue") is a skill defect, not an application of this rule. Inventing a prose description of a blocker when a widget template is defined for it is a skill defect. **Exception — visualize unavailable:** If `show_widget` itself is unavailable, apply the Widget fallback protocol defined in Tool discipline below.
+- **All user-facing blockers must use `mcp__visualize__show_widget`.** If the skill hits a blocker at any point (unauthenticated session, missing prerequisite, unexpected page state, tool unavailable), it must render a defined blocker widget — never output a prose message. If no widget template exists for the blocker, stop and surface the issue in chat with a single sentence only, then wait for instructions. **That single-sentence rule applies only when no template and no fallback exist for the blocker** — it is not a shortcut around a blocker that has either. `workspace_required` has both a widget and a verbatim fallback, so a one-line summary of it ("Waiting for a folder to be added", "I'll wait for you to add a folder, then click continue") is a skill defect, not an application of this rule. Inventing a prose description of a blocker when a widget template is defined for it is a skill defect. **Exception — visualize unavailable:** If `show_widget` itself is unavailable, apply the Widget fallback protocol defined in Tool discipline below. **Exception — plain-text session-close notices:** this rule governs *blockers* only. Informational text shown at successful session close (e.g. the "Session closed. Run the skill again whenever you're ready for the next customer." lines in Step 14b, and the external-mode close notice in Step 14b-D) is not a blocker and is intentionally plain text, not a widget.
 
 **Commentary discipline**
 - Between any two consecutive tool calls, produce zero prose output. No transitional sentences ("Now I'll...", "Let me...", "B-3 ✅. Now B-4...", "All 5 chunks loaded..."), no result echoes, no status updates. Hold all intermediate findings until the final response or a blocker.
@@ -94,10 +104,10 @@ Step 0 (new vs existing)
 
 In both cases apply the fallback below by widget category. A missing tool is not a reason to improvise: every widget in this skill has a defined fallback, and skipping to a sentence of your own is a skill defect.
 
-- **Category 1 — Info/status widgets** (no user input required): `tier_summary`, `inspection_complete`, `sdk_upload_progress`, `uploading_feedback`, `handoff_complete`
+- **Category 1 — Info/status widgets** (no user input required): `tier_summary`, `inspection_complete`, `signals_configured`, `sdk_upload_progress`, `uploading_feedback`, `handoff_complete`
   → Output a concise plain-text summary (≤5 lines) in chat. No customer response needed. Continue immediately.
 
-- **Category 2 — Binary/option choice widgets**: `signal_retest_bundle` (single button: fall back to plain text and continue to SI-I), `credentials_login_gate`, `blocker_login_required`, `blocker_step_failed`, `upload_login_gate`, `session_expired_gate`, `org_confirmation`, `deployment_choice`, `deployment_choice_cms`, `deployment_instructions`, `intake_step1c_credentials`, `signals_configured`, `deployment`, `session_complete`, `feedback_saved`, `handoff_confirm`, `handoff_destination_exists`
+- **Category 2 — Binary/option choice widgets**: `signal_retest_bundle` (single button: fall back to plain text and continue to SI-I), `credentials_login_gate`, `blocker_login_required`, `blocker_step_failed`, `upload_login_gate`, `session_expired_gate`, `org_confirmation`, `deployment_choice`, `deployment_choice_cms`, `deployment_instructions`, `intake_step1c_credentials`, `deployment`, `session_complete`, `feedback_saved`, `handoff_confirm`, `handoff_destination_exists`
   → Use `AskUserQuestion` with the exact same options as the widget. Never use plain chat text for a decision point.
 
 - **Category 3a — Multi-signal validation / retest matrix**: `signal_validation_matrix`, `signal_retest_matrix`
@@ -116,7 +126,7 @@ In both cases apply the fallback below by widget category. A missing tool is not
 - **Category 3d — Intake forms requiring free-text input**: `intake_step1a`, `credentials_manual_entry`, `category_unknown`
   → **HARD STOP.** These forms collect values (domain, customer name, credentials) that cannot be represented as a fixed option list. Output exactly one sentence: *"The widget renderer is unavailable — please restart the Claude desktop app and reopen this conversation to continue."* Do not ask for these values in chat text. Do not proceed.
 
-**Execution discipline — page inspection and SDK configuration**
+**Execution discipline — page inspection and SDK Config**
 
 This skill executes two kinds of mechanical work: (1) navigating live pages and running capture scripts, and (2) writing `initLogSignal` enhance functions. Both must be done by the book — no creativity, no optimisation, no smart alternatives.
 
@@ -133,7 +143,7 @@ This skill executes two kinds of mechanical work: (1) navigating live pages and 
 >
 > On production sites this adds one real item to the basket. This is expected and accepted. **No user confirmation is required, requested, or permitted.**
 
-**SDK configuration — `initLogSignal` enhance functions:**
+**SDK Config — `initLogSignal` enhance functions:**
 - Every `enhance` function must be built exclusively from patterns defined in `references/signal-schema.md`. Do not invent new JavaScript patterns, DOM selectors, or extraction logic not covered by the schema reference.
 - Field source priority is fixed (JSON-LD → dataLayer → meta → DOM selector → URL param → static fallback). Do not skip levels or use a lower-priority source when a higher one is available.
 - `return false` (not `return null`, not `return signal`) when a required field is missing. This is the defined pattern — do not change it.
@@ -161,7 +171,7 @@ This skill executes two kinds of mechanical work: (1) navigating live pages and 
   - Any sentence that describes what was just seen, what just happened, or what is about to happen ← FORBIDDEN
   - The ONLY permitted output between consecutive tool calls is a single plain status line immediately before the next tool call (e.g. "Navigating to Sign-in page."). If no status line is needed, emit nothing.
 - Post-tool prose is only permitted when a step explicitly requires surfacing a validation error or unresolvable blocker to the user.
-- **Two documented exceptions, both in the Pre-step:** its opening line (said before the storage check, so the very first thing the user sees explains itself) and its `workspace_required` fallback text (said when the widget renderer is unavailable). Both are verbatim scripts in this skill, not narration — say them in full or not at all. A blocker the user has to clear is never reported as a bare status line.
+- **Three documented exceptions, all in the Pre-step:** its opening line (said before the storage check, so the very first thing the user sees explains itself), its `workspace_required` fallback text (said when the widget renderer is unavailable), and the folder-layout notice (said only when `migrate_layout.py` moved something). All are verbatim scripts in this skill, not narration — say them in full or not at all. A blocker the user has to clear is never reported as a bare status line.
 - Note: `show_widget` elicit form submissions appear in chat as a user message containing the submitted field values — this is platform behavior and cannot be suppressed. It is not skill commentary.
 
 **No session-resume defect recap (HARD STOP):** When resuming from a compacted session or a conversation summary, never open with a description of prior skill defects — e.g. "Two skill defects in my previous run:", "In the last session I violated:", or any sentence recapping prior mistakes before the first tool call. Resume immediately at the next defined step with zero preamble. Prior run issues belong in `inspection.findings[]`, not in chat.
@@ -234,13 +244,32 @@ print('connected' if mnt else 'not_connected')
 "
 ```
 
-**If a folder IS available** (`connected`): create `SDK-config-assistant/profiles/` inside it if it is not already there. A first run against a newly added folder is the normal case, so an empty folder is expected here — not an error:
+**If a folder IS available** (`connected`): first bring the folder up to the current layout, then create `sdk-config-assistant/profiles/` inside it if it is not already there. A first run against a newly added folder is the normal case, so an empty folder is expected here — not an error:
 
 ```bash
-mkdir -p /sessions/*/mnt/SDK-config-assistant/profiles/
+python3 scripts/migrate_layout.py "$(ls -d /sessions/*/mnt | head -1)"
+mkdir -p /sessions/*/mnt/sdk-config-assistant/profiles/
 ```
 
-All profile reads and writes in this session use that path as the profiles root.
+**Folder layout.** Everything these skills write sits under the added folder, one subfolder per skill, and every site folder is named after the site's production hostname exactly as the handoff computes it (`host` in E-3: lower case, scheme, path and port removed, `www.` kept):
+
+```
+<added folder>/
+├── sdk-config-assistant/
+│   ├── profiles/          website profiles and analytics sidecars (this skill's state)
+│   └── <host>/            generated SDK Config, implementation review, test guide — one folder per site
+├── sdk-config-coding/
+│   └── <host>/            sites handed off to the coding assistant (written in E-3)
+└── sdk-config-analysis/   reports written by the analysis skill
+```
+
+`profiles` is a reserved name, never a host. All profile reads and writes in this session use `sdk-config-assistant/profiles/` as the profiles root.
+
+`migrate_layout.py` moves a folder used by an earlier version of this skill (`SDK-config-assistant/outputs/…`, `SDK-config-assistant/profiles/`, `SDK-config-coding/sites/…`) into this layout, and rewrites the handoff folder recorded in each profile. It never deletes or overwrites anything, and on a folder already in this layout it prints `"status": "nothing_to_do"` and changes nothing. Read its JSON output:
+
+- `nothing_to_do` → say nothing; continue.
+- `migrated` → say this once, verbatim, then continue: *"Your saved work has moved to the new folder layout: sdk-config-assistant/ and sdk-config-coding/, with one folder per website."* If `left` is not empty, add: *"A few items couldn't be moved automatically; each old folder that still has something in it contains a MIGRATED.txt saying why."* If any `moved` entry came from `SDK-config-assistant/outputs/`, add: *"If you installed a Tampermonkey test script for one of these sites, reinstall it from the site's new folder, because it points at the old location."*
+- `error` → continue without migrating. A folder that is still in the old layout simply looks like a first run: its profiles aren't found in Step 0.
 
 **Generate a run ID immediately after confirming the folder is available.** This ID persists for the entire session and is used in the analytics sidecar.
 
@@ -281,7 +310,7 @@ Then wait for the user to add a folder before proceeding to Step 0. Do not conti
     </div>
   </div>
   <div style="background:var(--color-background-secondary);border-radius:8px;padding:10px 14px;font-size:12px;color:var(--color-text-secondary);margin-bottom:14px">
-    <strong>Recommended — use a Project:</strong> create a Project (for example <code>SDK config</code>),
+    <strong>Recommended — use a Project:</strong> create a Project (for example <code>SDK Config</code>),
     add a folder to the Project's context, and run this skill from sessions inside that Project. Every
     session in the Project can then read and write the same profiles, so you only set this up once.
     <br><br>
@@ -309,7 +338,7 @@ When `sendPrompt` fires `'Folder added — continue'`: re-run the bash check. If
 >
 > There are two ways to give me one:
 >
-> 1. **Use a Project — recommended.** Create a Project (for example `SDK config`), add a folder to the Project's context, then run this skill from sessions inside that Project. Every session in the Project reads and writes the same profiles, so you set this up once and every future run finds your work.
+> 1. **Use a Project — recommended.** Create a Project (for example `SDK Config`), add a folder to the Project's context, then run this skill from sessions inside that Project. Every session in the Project reads and writes the same profiles, so you set this up once and every future run finds your work.
 > 2. **This session only.** Add a folder to the current session context. It applies to this conversation alone — the next session will ask again.
 >
 > A dedicated folder such as `Acoustic SDK Configs` works well. Where the **Add folder** control lives varies by Claude version; check the app's own help if you can't find it.
@@ -333,9 +362,9 @@ Then `AskUserQuestion` with exactly these three options — this keeps the gate 
 Use `AskUserQuestion` with exactly two options:
 
 - **New customer** — New customer onboarding (Full onboarding — inspect, generate, upload)
-- **Modifying an existing customer SDK config** — Update a previously created customer SDK
+- **Modifying an existing customer SDK Config** — Update a previously created customer SDK Config
 
-Set `mode = "new"` if the user selects "New customer", `mode = "existing"` if "Modifying an existing customer SDK config".
+Set `mode = "new"` if the user selects "New customer", `mode = "existing"` if "Modifying an existing customer SDK Config".
 
 Read the result via `mcp__cowork__read_widget_context`.
 
@@ -347,7 +376,7 @@ Read the result via `mcp__cowork__read_widget_context`.
 
 Proceed directly to the **Chrome pre-flight check** below, then to Step 1 (the intake form). No intermediate questions.
 
-After SDK config generation and upload are complete, **persist the website profile** (see "Persist profile after upload" in Step 10 Step C).
+After SDK Config generation and upload are complete, **persist the website profile** (see "Persist profile after upload" in Step 10 Step C).
 
 ---
 
@@ -356,7 +385,7 @@ After SDK config generation and upload are complete, **persist the website profi
 **Step 0a — Scan for saved profiles.**
 
 ```bash
-ls /sessions/*/mnt/SDK-config-assistant/profiles/*.json 2>/dev/null | grep -v '\.analytics\.json$' || echo "NO_PROFILES"
+ls /sessions/*/mnt/sdk-config-assistant/profiles/*.json 2>/dev/null | grep -v '\.analytics\.json$' || echo "NO_PROFILES"
 ```
 
 If `NO_PROFILES` or the directory doesn't exist: show the `no_profiles_found` widget using `mcp__visualize__show_widget` (title: `no_profiles_found`, loading: `"Checking profiles…"`). Do not output prose.
@@ -373,7 +402,7 @@ If `NO_PROFILES` or the directory doesn't exist: show the `no_profiles_found` wi
     </div>
   </div>
   <div style="background:var(--color-background-secondary);border-radius:8px;padding:10px 14px;font-size:12px;color:var(--color-text-secondary);margin-bottom:16px">
-    <strong>Profiles folder:</strong> <code>SDK-config-assistant/profiles/</code> inside the folder added to this session — or to the Project this session is running in.
+    <strong>Profiles folder:</strong> <code>sdk-config-assistant/profiles/</code> inside the folder added to this session — or to the Project this session is running in.
     If you saved profiles against a different folder, add that one instead, or start a session in the Project that has it.
   </div>
   <div style="display:flex;flex-direction:column;gap:8px">
@@ -400,7 +429,7 @@ If profiles exist, read each one's `customer.name` and `customer.productionDomai
 python3 -c "
 import json, glob, pathlib
 # Use glob to find the profiles dir regardless of session name
-dirs = glob.glob('/sessions/*/mnt/SDK-config-assistant/profiles')
+dirs = glob.glob('/sessions/*/mnt/sdk-config-assistant/profiles')
 if not dirs:
     print('NO_PROFILES'); exit()
 # Exclude .analytics.json sidecars — only operational profiles are selectable
@@ -443,7 +472,7 @@ The answer maps back to the profile slug (e.g. "Acme Retail" → `acmeretail`, "
 ```bash
 python3 -c "
 import json, glob, pathlib
-dirs = glob.glob('/sessions/*/mnt/SDK-config-assistant/profiles')
+dirs = glob.glob('/sessions/*/mnt/sdk-config-assistant/profiles')
 if not dirs: print('{}'); exit()
 p = pathlib.Path(dirs[0]) / '<SLUG>.json'
 print(json.dumps(json.loads(p.read_text()), indent=2))
@@ -469,11 +498,11 @@ def write_atomic(path, text):
 try:
     mnt = glob.glob('/sessions/*/mnt')
     root = pathlib.Path(mnt[0])
-    pp = root/'SDK-config-assistant'/'profiles'/(os.environ['SLUG'] + '.json')
+    pp = root/'sdk-config-assistant'/'profiles'/(os.environ['SLUG'] + '.json')
     prof = json.loads(pp.read_text())
     h = prof.get('handoff') or {}
     folder = (h.get('folder') or '').strip('/')
-    res_path = root/folder/'coding-result.json' if folder.startswith(('SDK-config-coding/sites/', 'SDK-coding-assistant/sites/')) else None
+    res_path = root/folder/'coding-result.json' if folder.startswith(('sdk-config-coding/', 'SDK-config-coding/sites/', 'SDK-coding-assistant/sites/')) else None
     summary = h.get('result')
     if res_path and res_path.is_file():
         r = json.loads(res_path.read_text())
@@ -604,12 +633,12 @@ This reads only `coding-result.json` in the handed-off folder, never anything el
 - `SIGNALS_TOTAL` → total signals in scope for this site (up to 9; the full set is available on every tier)
 - `INSPECTION_ROUND` → `inspection.round` (default `1` if absent)
 - `HANDOFF_LINE` → empty when the profile has no `handoff` object. Otherwise `<div class="pl-status" style="margin-top:8px"><div class="pl-dot" style="background:#706CFF"></div><span class="pl-status-text">TEXT</span></div>`, where `TEXT` is built from the Step 0c-H `HANDOFF|` output (or from `handoff.at`, `handoff.folder` and `handoff.result` when the script printed `SKIP`):
-  - with a result: `"Handed off to the coding assistant on DATE (FOLDER). Fixed there: FIXED_LIST. Readiness there: READINESS. Continuing here produces a new SDK."` Use `none recorded` when the fixed list is empty.
-  - without a result: `"Handed off to the coding assistant on DATE (FOLDER). No result saved there yet. Continuing here produces a new SDK."`
+  - with a result: `"Handed off to the coding assistant on DATE (FOLDER). Fixed there: FIXED_LIST. Readiness there: READINESS. Continuing here produces a new SDK Config."` Use `none recorded` when the fixed list is empty.
+  - without a result: `"Handed off to the coding assistant on DATE (FOLDER). No result saved there yet. Continuing here produces a new SDK Config."`
   This is information only. It adds no button and no question, and routing is unchanged.
 - `STATUS_LINE` → derive from profile state:
-  - `acoustic.deliveryUrl` absent → `"No prior SDK upload detected — ready to generate or re-inspect"`
-  - `acoustic.sdkBundle.validated == false` → `"SDK config generated — pending signal validation"`
+  - `acoustic.deliveryUrl` absent → `"No prior SDK Config upload detected — ready to generate or re-inspect"`
+  - `acoustic.sdkBundle.validated == false` → `"SDK Config generated — pending signal validation"`
   - `acoustic.sdkConfigurationComplete == true` → `"Configuration complete — delivery URL active"`
   - otherwise → `"Profile loaded from round INSPECTION_ROUND inspection"`
 
@@ -617,7 +646,7 @@ This reads only `coding-result.json` in the handed-off folder, never anything el
 
 ```python
 import json, glob as _glob, pathlib
-_dirs = _glob.glob('/sessions/*/mnt/SDK-config-assistant/profiles')
+_dirs = _glob.glob('/sessions/*/mnt/sdk-config-assistant/profiles')
 profile_path = pathlib.Path(_dirs[0]) / '<SLUG>.json'
 profile = json.loads(profile_path.read_text())
 bundle = profile.get('acoustic', {}).get('sdkBundle', {})
@@ -629,7 +658,7 @@ print('pending' if bundle.get('validated') == False else 'not_pending')
 
 ```python
 import json, glob as _glob, pathlib
-_dirs = _glob.glob('/sessions/*/mnt/SDK-config-assistant/profiles')
+_dirs = _glob.glob('/sessions/*/mnt/sdk-config-assistant/profiles')
 profile_path = pathlib.Path(_dirs[0]) / '<SLUG>.json'
 profile = json.loads(profile_path.read_text())
 ss = profile.get('acoustic', {}).get('signalStatus', {})
@@ -643,9 +672,9 @@ Then re-present the **validation matrix** from Step 9 (`signal_validation_matrix
 
 Use `AskUserQuestion` to confirm what the user wants to do next:
 
-- **"Regenerate SDK config from saved profile"** — re-run generation with the existing profile (no browser re-inspection needed). Skips to Step 9 (validate and generate).
+- **"Regenerate SDK Config from saved profile"** — re-run generation with the existing profile (no browser re-inspection needed). Skips to Step 9 (validate and generate).
 - **"Re-inspect pages then regenerate"** — run the full browser inspection again to refresh mappings. Goes to Chrome pre-flight then Step 2.
-- **"Just re-upload the existing SDK config"** — skip generation entirely. Goes to Step 11 (TODO check + manual edits) → Step 12 (JS review — confirm `fakeSignals: false`) → Step 13 (browser verify) → Step 10-pre (deployment choice) → Step 10 re-upload flow. Do NOT skip Steps 11, 12, or 13 — re-uploading a config without verifying `fakeSignals: false` would push a test-mode config to production.
+- **"Just re-upload the existing SDK Config"** — skip generation entirely. Goes to Step 11 (TODO check + manual edits) → Step 12 (JS review — confirm `fakeSignals: false`) → Step 13 (browser verify) → Step 10-pre (deployment choice) → Step 10 re-upload flow. Do NOT skip Steps 11, 12, or 13 — re-uploading a config without verifying `fakeSignals: false` would push a test-mode config to production.
 
 ---
 
@@ -777,7 +806,19 @@ function sub(){var n=document.getElementById('f-name').value.trim();var d=docume
 </script>
 ```
 
-After `sendPrompt` fires, the values arrive as the next user message. Parse `name`, `domain`, and `tier` from it. As soon as tier is confirmed, render the tier summary widget (see below) before proceeding to Step 1b.
+After `sendPrompt` fires, the values arrive as the next user message. Parse `name`, `domain`, and `tier` from it. Run **Step 1a-R** below, then render the tier summary widget (see below) before proceeding to Step 1b.
+
+**Step 1a-R — Start record**
+
+Runs once, right after the Step 1a values are parsed and before the tier summary widget. It is silent: no prose, no widget, no question. It never blocks the onboarding. Any failure is ignored and the flow continues to the tier summary.
+
+1. **Fix the slug.** Run `python3 scripts/analytics_start.py --slug-only --name "<name>"`. It prints `SLUG <slug>`: the customer name lowercased, with every run of other characters replaced by `-` (`Acme Retail` → `acme-retail`). This is the same rule as `slugify()` in `generate_sdk_patched.py`. If it prints `WARNING` instead (a name with no letters or digits), skip the rest of Step 1a-R. Use this slug as `<SLUG>` for the website profile (`<SLUG>.json`) and the analytics sidecar for the rest of the session, so the start record and the Step 14b-A record land in the same file.
+2. **Write the start record** (local file only):
+   ```bash
+   python3 scripts/analytics_start.py --run-id "<runId>" --started-at "<runStartedAt>" \
+     --name "<name>" --domain "<domain>" --tier "<tier>"
+   ```
+   It adds this run to `<SLUG>.analytics.json` with `status: "started"`, `workflowMode: "new"`, `action: "full_onboarding"`, the tier, the customer name and the domain, keyed by `runId`. It prints `OK <slug>` (ignore the line of JSON after it). A `WARNING` line means nothing was written; continue either way.
 
 **Step 1b — Environment**
 
@@ -1235,7 +1276,7 @@ Render this HTML, substituting `CUSTOMER_NAME` and `TIER` with the actual values
 
   <div style="margin-top:12px;padding:10px 14px;background:var(--color-background-secondary);border-radius:var(--border-radius-md);font-size:12px;color:var(--color-text-secondary)">
     <i class="ti ti-info-circle" aria-hidden="true"></i>
-    All signals are available on Pro, Premium, and Ultimate. Any signal shown as not applicable has no matching functionality on this site — it is skipped during inspection and excluded from the generated SDK config. Run a diff pass if the site adds it later.
+    All signals are available on Pro, Premium, and Ultimate. Any signal shown as not applicable has no matching functionality on this site — it is skipped during inspection and excluded from the generated SDK Config. Run a diff pass if the site adds it later.
   </div>
 </div>
 ```
@@ -1362,7 +1403,7 @@ Using the output from Step 2a-2 and the checklist from `references/site-category
 ```python
 import json, pathlib, glob as _glob
 
-_dirs = _glob.glob('/sessions/*/mnt/SDK-config-assistant/profiles')
+_dirs = _glob.glob('/sessions/*/mnt/sdk-config-assistant/profiles')
 profile_path = pathlib.Path(_dirs[0]) / '<SLUG>.json'
 profile = json.loads(profile_path.read_text())
 profile.setdefault('customer', {})
@@ -1641,7 +1682,7 @@ If values would differ, document the mismatch in `questions` before generating. 
 
 If the skill cannot confirm a match (e.g. order confirmation uses a different SKU format, or the site wasn't accessible on staging), note it as an open item — the implementation review will include a ⚠️ product ID consistency warning.
 
-Copy `assets/website-profile.template.json` into the output directory and populate it from confirmed evidence. Use auto-captured Type 2 and Type 4 data to fill `pageCategoryRules` and signal `triggers`. Keep customer rules isolated from the reusable SDK engine.
+Copy `assets/website-profile.template.json` into the site's output folder (`sdk-config-assistant/<host>/` — see **Folder layout** in the Pre-step) and populate it from confirmed evidence. Use auto-captured Type 2 and Type 4 data to fill `pageCategoryRules` and signal `triggers`. Keep customer rules isolated from the reusable `initLogSignal` engine.
 
 ---
 
@@ -1656,23 +1697,23 @@ The widget must show:
 - **Pages inspected** — list each page type with a ✅ (evidence captured) or ⚠️ (could not verify)
 - **Signals ready to generate** — list signals with confirmed triggers (green ✅)
 - **Blockers** — list any entries from `profile.blockers[]` with a ⚠️ badge and the plain-language `summary` (not the `resolution` — keep it short). Use severity to colour: high = red/amber, medium = amber, low = grey.
-- **Recommended next step** — always "Generate SDK config (test mode)" unless all signals are blocked
+- **Recommended next step** — always "Generate SDK Config (test mode)" unless all signals are blocked
 
 Then use `AskUserQuestion` to ask:
 
 **"All pages have been inspected. What would you like to do next?"**
 
 Options:
-- **"Generate SDK config now"** — proceed to Step 9. The SDK config will be generated in test mode (signals print to console only — no data is sent).
-- **"Pause — I need to resolve blockers first"** — stop here. Display the blockers list from `profile.blockers[]` with the `resolution` text for each. Tell the user: "Come back and say 'Generate SDK config' when you're ready and I'll continue from here."
+- **"Generate SDK Config now"** — proceed to Step 9. The SDK Config will be generated in test mode (signals print to console only — no data is sent).
+- **"Pause — I need to resolve blockers first"** — stop here. Display the blockers list from `profile.blockers[]` with the `resolution` text for each. Tell the user: "Come back and say 'Generate SDK Config' when you're ready and I'll continue from here."
 
-> If the user selects "Generate SDK config now" but there are high-severity blockers, proceed but flag the blocked signals in the implementation review as `⚠️ Requires customer input before production`.
+> If the user selects "Generate SDK Config now" but there are high-severity blockers, proceed but flag the blocked signals in the implementation review as `⚠️ Requires customer input before production`.
 
 ---
 
 ### 9. Validate and generate
 
-> **⛔ HARD STOP — Step 8b gate is a prerequisite.** Before calling `validate_profile.py` or `generate_sdk_patched.py`, confirm that Step 8b has been completed in this session — both the `show_widget` inspection summary AND the `AskUserQuestion` gate must have been presented and the user must have selected "Generate SDK config now". If Step 8b was not completed, stop and run it now. Running the generator without the Step 8b gate is a skill defect.
+> **⛔ HARD STOP — Step 8b gate is a prerequisite.** Before calling `validate_profile.py` or `generate_sdk_patched.py`, confirm that Step 8b has been completed in this session — both the `show_widget` inspection summary AND the `AskUserQuestion` gate must have been presented and the user must have selected "Generate SDK Config now". If Step 8b was not completed, stop and run it now. Running the generator without the Step 8b gate is a skill defect.
 
 Before running the generator, confirm the website profile `signals` block contains **only signals the site actually supports**. Remove entries for signals with no matching site functionality entirely rather than leaving them empty or commented out — this prevents the generator emitting dead code.
 
@@ -1705,27 +1746,31 @@ profile_path.write_text(json.dumps(profile, indent=2))
 
 **Step B — Validate and generate**
 
-The generator uses `assets/initLogSignal.js` (committed to the repo) as its base — no CDN fetch required on a fresh clone. Always use `scripts/generate_sdk_patched.py` (not `generate_sdk.py`) — the patched version resolves additional field-source formats, enforces the TODO hard-block, injects the audience signal, and updates privacy targets automatically.
+The generator uses `assets/initLogSignal.js` (shipped with the skill) as its base. If that file is missing or invalid, the generator falls back to Acoustic's public CDN copy on its own; see below. Always use `scripts/generate_sdk_patched.py` (not `generate_sdk.py`) — the patched version resolves additional field-source formats, enforces the TODO hard-block, injects the audience signal, and updates privacy targets automatically.
+
+The output folder is always `sdk-config-assistant/<host>/` in the added folder, where `<host>` is the site's production hostname (see **Folder layout** in the Pre-step). Never choose another name, and never write output anywhere else — Step 9's file listing, the CMS upload, and the coding handoff all look for it there. A site folder that already exists is reused; the generator overwrites its files.
 
 ```bash
-python3 scripts/validate_profile.py /absolute/path/website-profile.json
+PROFILE=/absolute/path/website-profile.json
+HOST=$(PYTHONPATH=scripts python3 -c "import json,sys,migrate_layout as m; print(m.host_of((json.load(open(sys.argv[1])).get('customer') or {}).get('productionDomain')))" "$PROFILE")
+[ -z "$HOST" ] && { echo 'ERROR: customer.productionDomain missing from profile'; exit 1; }
+OUT="$(ls -d /sessions/*/mnt | head -1)/sdk-config-assistant/$HOST"
+python3 scripts/validate_profile.py "$PROFILE"
 PYTHONPATH=scripts python3 scripts/generate_sdk_patched.py \
-  /absolute/path/website-profile.json \
+  "$PROFILE" \
   --base-js assets/initLogSignal.js \
-  --out /absolute/path/output-directory
+  --out "$OUT"
 ```
 
-> **`assets/initLogSignal.js` missing or needs refreshing?** The bash sandbox has no outbound internet access, so do NOT use `curl`, Python `requests/urllib`, or `mcp__workspace__web_fetch` to fetch it — those will all fail or be blocked. Use Chrome instead:
+If it prints `ERROR: customer.productionDomain missing from profile`, nothing was generated: fill in `customer.productionDomain` and run it again. Never generate into `sdk-config-assistant/` itself.
+
+> **`assets/initLogSignal.js` missing?** Run the command above unchanged. `generate_sdk_patched.py` reads `--base-js` first, then `assets/initLogSignal.js`, then fetches the public CDN copy, and logs which one it used. It injects the `jsonLdGet` helpers whichever source it uses. Don't fetch the file yourself with `curl`, `web_fetch` or Chrome `get_page_text`: the text Chrome returns loses its line breaks, so `//` comments swallow the code after them.
 >
-> 1. `mcp__Claude_in_Chrome__navigate` to the CDN URL below
-> 2. `mcp__Claude_in_Chrome__get_page_text` on that tab — this returns the full JS source
-> 3. Write the returned content to `assets/initLogSignal.js`
+> If the generator exits with `Could not fetch initLogSignal.js from CDN` (the session's network blocks it), stop and tell the user in one line that the skill's `assets/initLogSignal.js` is missing and the plugin needs updating, then wait. Don't ask them to download the file.
 >
-> **Never use `javascript_tool` to read the file** — the Chrome extension's content filter blocks raw JS content. `get_page_text` is the only Chrome tool that works for this.
+> CDN URL (used by the generator): `https://content-eu-1.content-cms.com/7fbff3c6-1b3b-4a7d-a64e-c8ebc38fa3df/dxdam/35/35cc26b5-a0ec-4e55-8c8e-a42b40cc54e1/initLogSignal.js`
 >
-> CDN URL: `https://content-eu-1.content-cms.com/7fbff3c6-1b3b-4a7d-a64e-c8ebc38fa3df/dxdam/35/35cc26b5-a0ec-4e55-8c8e-a42b40cc54e1/initLogSignal.js`
->
-> **Never use `sdk-template.js` as `--base-js`** — it lacks the signal key blocks the generator requires and will produce a broken, doubled SDK output.
+> **Never use `sdk-template.js` as `--base-js`** — it lacks the signal key blocks the generator requires and will produce a broken, doubled SDK Config output.
 
 Fix validation errors. Report warnings as review items.
 
@@ -1761,7 +1806,7 @@ When `identification` is enabled in the profile, the generator injects an `audie
 - **Always overwrites** — keeps sessionStorage current with the latest typed value so every signal posts the most recent email in its `audience` object
 - **Always returns `false`** — it is NOT an Acoustic Connect signal and is never logged to the platform
 
-> ⚠️ **Customer note (include in implementation review):** The `audience` signal block is a utility injected by the Acoustic onboarding SDK. It does not appear in the Acoustic Connect signal catalogue and is not tracked as a platform signal. Its sole purpose is to capture and persist the customer's email address so all other signals can include it in their `audience` object, enabling identity resolution across the session.
+> ⚠️ **Customer note (include in implementation review):** The `audience` signal block is a utility block that this skill adds to the SDK Config. It does not appear in the Acoustic Connect signal catalogue and is not tracked as a platform signal. Its sole purpose is to capture and persist the customer's email address so all other signals can include it in their `audience` object, enabling identity resolution across the session.
 
 Other signals retrieve the stored email via:
 ```javascript
@@ -1911,7 +1956,7 @@ Custom code is anything that adds capability the built-in modules cannot provide
 >
 > | File | Pattern | Example (Acme Retail) |
 > |------|---------|---------------|
-> | SDK config | `acoConnectSdkConfig-{domain-slug}.js` | `acoConnectSdkConfig-acmeretail.js` |
+> | SDK Config | `acoConnectSdkConfig-{domain-slug}.js` | `acoConnectSdkConfig-acmeretail.js` |
 > | Tampermonkey config | `acoConnectSdkConfig-{domain-slug}.tamperMonkeyConfig.js` | `acoConnectSdkConfig-acmeretail.tamperMonkeyConfig.js` |
 > | Signal config JSON | `{customer-slug}-customer-signal-config.json` | `acme-retail-us-customer-signal-config.json` |
 > | Implementation review | `{customer-slug}-implementation-review.md` | `acme-retail-us-implementation-review.md` |
@@ -1926,14 +1971,14 @@ Custom code is anything that adds capability the built-in modules cannot provide
 
 The generator produces:
 
-- `acoConnectSdkConfig-<domain-slug>.js` — configured SDK config; `<domain-slug>` is derived from the production domain (e.g. `www2.acmeretail.com` → `acmeretail`)
-- `acoConnectSdkConfig-<domain-slug>.tamperMonkeyConfig.js` — lightweight Tampermonkey `@require` script (loads the config from disk; no SDK code inlined)
+- `acoConnectSdkConfig-<domain-slug>.js` — configured SDK Config; `<domain-slug>` is derived from the production domain (e.g. `www2.acmeretail.com` → `acmeretail`)
+- `acoConnectSdkConfig-<domain-slug>.tamperMonkeyConfig.js` — lightweight Tampermonkey `@require` script (loads the SDK Config from disk; no SDK Config code inlined)
 - `<customer-slug>-customer-signal-config.json`
 - `<customer-slug>-implementation-review.md`
 
-**After generation — persist SDK config state to profile**
+**After generation — persist SDK Config state to profile**
 
-`generate_sdk_patched.py` prints a JSON result on success. Take its `bundle` value (the absolute path of the SDK file it just wrote) and substitute it for `<BUNDLE_PATH>` below. Do not construct this path by hand.
+`generate_sdk_patched.py` prints a JSON result on success. Take its `bundle` value (the absolute path of the SDK Config file it just wrote) and substitute it for `<BUNDLE_PATH>` below. Do not construct this path by hand.
 
 Immediately after a successful generation, write the config state back to the website profile so the skill can resume from the validation step on a future run without re-running the full onboarding:
 
@@ -1941,7 +1986,7 @@ Immediately after a successful generation, write the config state back to the we
 import json, pathlib, datetime, glob as _glob
 
 # Locate the persistent profiles directory
-_dirs = _glob.glob('/sessions/*/mnt/SDK-config-assistant/profiles')
+_dirs = _glob.glob('/sessions/*/mnt/sdk-config-assistant/profiles')
 if not _dirs:
     raise SystemExit('Profiles root not found — no folder added to this session. Re-run the Pre-step storage check.')
 profiles_dir = pathlib.Path(_dirs[0])
@@ -1994,10 +2039,9 @@ Immediately after writing the profile state, locate the output files and call `m
 ```python
 import glob as _glob, pathlib
 
-slug = '<SLUG>'  # replace with actual domain slug
-_out_dirs = _glob.glob(f'/sessions/*/mnt/SDK-config-assistant/outputs/{slug}*') or \
-            _glob.glob(f'/sessions/*/mnt/.claude/skills/sdk-config-assistant/outputs/{slug}*')
-out_dir = sorted(_out_dirs, key=lambda d: pathlib.Path(d).stat().st_mtime, reverse=True)[0] if _out_dirs else None
+host = '<HOST>'  # the site's output folder name — HOST from Step 9 Step B
+_out_dirs = _glob.glob(f'/sessions/*/mnt/sdk-config-assistant/{host}')
+out_dir = _out_dirs[0] if _out_dirs else None
 
 if out_dir:
     sdk_js   = next(pathlib.Path(out_dir).glob('acoConnectSdkConfig-*.js'), None)
@@ -2014,7 +2058,7 @@ Then show the file summary widget — substitute `SLUG` with the actual domain s
 
 ```html
 <div style="padding:0.75rem 0;font-family:var(--font-sans)">
-  <div style="font-size:13px;font-weight:600;color:var(--color-text-primary);margin-bottom:14px">SDK config generated ✅</div>
+  <div style="font-size:13px;font-weight:600;color:var(--color-text-primary);margin-bottom:14px">SDK Config generated ✅</div>
   <table style="width:100%;border-collapse:collapse;font-size:12px">
     <thead>
       <tr style="border-bottom:1px solid var(--color-border-tertiary)">
@@ -2025,7 +2069,7 @@ Then show the file summary widget — substitute `SLUG` with the actual domain s
     <tbody>
       <tr style="border-bottom:1px solid var(--color-border-tertiary)">
         <td style="padding:8px;font-family:monospace;color:#706CFF">acoConnectSdkConfig-SLUG.js</td>
-        <td style="padding:8px;color:var(--color-text-secondary)">SDK config. Replace in Tampermonkey folder to update.</td>
+        <td style="padding:8px;color:var(--color-text-secondary)">SDK Config. Replace in Tampermonkey folder to update.</td>
       </tr>
       <tr style="border-bottom:1px solid var(--color-border-tertiary)">
         <td style="padding:8px;font-family:monospace;color:#706CFF">acoConnectSdkConfig-SLUG.tamperMonkeyConfig.js</td>
@@ -2052,22 +2096,22 @@ After generation, also create **`How to test and validate the data.md`** in the 
 **Section: Method 1 — TamperMonkey**
 
 The generator produces two files for Tampermonkey testing:
-- `acoConnectSdkConfig-<domain-slug>.js` — the full configured SDK config
+- `acoConnectSdkConfig-<domain-slug>.js` — the full configured SDK Config
 - `acoConnectSdkConfig-<domain-slug>.tamperMonkeyConfig.js` — a lightweight userscript that `@require`-loads the config from the local file system
 
-The `.user.js` file does NOT embed the SDK — it uses `@require file:///...` to load the config from disk. This means updating the SDK for a new round only requires replacing the `.js` file; no Tampermonkey script reinstall is needed.
+The `.user.js` file does NOT embed the SDK Config — it uses `@require file:///...` to load the config from disk. This means updating the SDK Config for a new round only requires replacing the `.js` file; no Tampermonkey script reinstall is needed.
 
 Write these as literal numbered steps (substitute the real domain-slug/domain):
 
 1. If you don't already have it, install the [Tampermonkey extension](https://www.tampermonkey.net/) for Chrome, then enable **Allow User Scripts** at `chrome://extensions`.
-2. In Tampermonkey → **Settings** → **Security**, add your output folder to the **Allowlist for @require** — e.g. `file:///path/to/output/<domain-slug>/*`. Without this, Tampermonkey blocks `file://` `@require` loads.
+2. In Tampermonkey → **Settings** → **Security**, add your output folder to the **Allowlist for @require** — e.g. `file:///path/to/sdk-config-assistant/<host>/*`. Without this, Tampermonkey blocks `file://` `@require` loads.
 3. Open the Tampermonkey dashboard → **Utilities** tab → **Import from file**.
 4. Select `acoConnectSdkConfig-<domain-slug>.tamperMonkeyConfig.js` from this output folder.
 5. Click **Install**.
-6. Visit `<productionDomain>` in Chrome — the SDK now loads automatically on every page of the site.
+6. Visit `<productionDomain>` in Chrome — the SDK Config (and, through it, the SDK) now loads automatically on every page of the site.
 7. Open DevTools (F12 or Cmd+Opt+I) → **Console** tab. This is where to watch for signals — see "Where to look in the console" below.
 8. This config currently has `fakeSignals: true` (test/console mode) — no data reaches Acoustic yet, signals only print to console.
-9. **To update the SDK for a new round:** regenerate `acoConnectSdkConfig-<domain-slug>.js` and save it to the same path — the Tampermonkey script will pick it up automatically on the next page reload. No script reinstall needed.
+9. **To update the SDK Config for a new round:** regenerate `acoConnectSdkConfig-<domain-slug>.js` and save it to the same path — the Tampermonkey script will pick it up automatically on the next page reload. No script reinstall needed.
 10. **To later switch to real mode** (send actual data to Connect): regenerate with `settings.mode = "production"` — the new config will have `fakeSignals: false`.
 
 **Section: Method 2 — Chrome DevTools Override**
@@ -2077,7 +2121,7 @@ No extension required. Write these as literal numbered steps:
 1. Open DevTools (F12 or Cmd+Opt+I) → **Sources** tab → **Overrides** sub-tab (click the `»` overflow arrow in the left sidebar if it isn't visible).
 2. Click **"Select folder for overrides"** → choose or create any empty local folder (e.g. a new folder on your Desktop) → click **Allow** when Chrome asks for filesystem permission.
 3. Go to the **Network** tab and reload `<productionDomain>`.
-4. In the Network list, find the request for the SDK config file (its URL ends in the delivery filename, e.g. `acoConnectSdkConfig-<slug>.js`).
+4. In the Network list, find the request for the SDK Config file (its URL ends in the delivery filename, e.g. `acoConnectSdkConfig-<slug>.js`).
 5. Right-click that request → **"Override content."** DevTools copies the live response into your override folder and opens it in the Sources editor.
 6. Select all the content in that editor (Ctrl+A / Cmd+A) and replace it with the full contents of `acoConnectSdkConfig-<slug>.js` from this output folder. Save (Ctrl+S / Cmd+S).
 7. Reload the page. Chrome now serves your local file instead of the real network response, every time that URL is requested.
@@ -2087,21 +2131,21 @@ No extension required. Write these as literal numbered steps:
 
 **Section: Where to look in the console for fake signals**
 
-Whichever method above was used, once the SDK is loaded:
+Whichever method above was used, once the SDK Config is loaded:
 
 1. Open DevTools → **Console** tab and keep it open while you browse the site.
 2. Browse normally — view a product, search, add something to the cart, sign in, etc.
 3. Each time a configured signal fires, a line prints in this exact format: `Acoustic Connect: Type 5 fake <signalType> signal 🥸` — e.g. `Acoustic Connect: Type 5 fake productView signal 🥸`. This is the confirmation that signal would have fired for real.
-4. If nothing prints while browsing, check that the console filter (top of the panel) isn't set to hide "log" level messages, and confirm the SDK initialized (see "Verifying the SDK is loaded" below) before assuming a signal is missing.
+4. If nothing prints while browsing, check that the console filter (top of the panel) isn't set to hide "log" level messages, and confirm the SDK Config loaded and the SDK initialized (see "Verifying the SDK Config is loaded" below) before assuming a signal is missing.
 5. Once `fakeSignals` is switched to `false` (real mode), these lines stop appearing in the console — instead, look in Acoustic Connect's Signal Management or Session Replay dashboard, since the data is now actually being sent, not just logged.
 
-Also include sections: **Verifying the SDK is loaded**, **What to look for in the console** (type 2/4/5 table), and **Key journeys to validate** (per-signal table). Do NOT include a "Switching to production mode" section — the skill handles this interactively in the validation step below.
+Also include sections: **Verifying the SDK Config is loaded**, **What to look for in the console** (type 2/4/5 table), and **Key journeys to validate** (per-signal table). Do NOT include a "Switching to production mode" section — the skill handles this interactively in the validation step below.
 
 **Validation gate — per-signal matrix**
 
 > ⚠️ **GUARDRAIL — mandatory stop after generation.**
 >
-> After SDK generation and test-guide creation this is the **only** next action. Do not:
+> After SDK Config generation and test-guide creation this is the **only** next action. Do not:
 > - Proceed to Step 10 (upload)
 > - Summarise what was generated
 > - Ask any other question
@@ -2116,7 +2160,7 @@ Also include sections: **Verifying the SDK is loaded**, **What to look for in th
 
 ```python
 import json, pathlib, glob as _glob, datetime
-_dirs = _glob.glob('/sessions/*/mnt/SDK-config-assistant/profiles')
+_dirs = _glob.glob('/sessions/*/mnt/sdk-config-assistant/profiles')
 profile_path = pathlib.Path(_dirs[0]) / '<SLUG>.json'
 profile = json.loads(profile_path.read_text())
 signal_status = profile.get('acoustic', {}).get('signalStatus', {})
@@ -2139,7 +2183,7 @@ Build `SIGNAL_MATRIX_ROWS` in Python before calling `show_widget`. One row per i
 ```python
 import json, pathlib, glob as _glob
 
-_dirs = _glob.glob('/sessions/*/mnt/SDK-config-assistant/profiles')
+_dirs = _glob.glob('/sessions/*/mnt/sdk-config-assistant/profiles')
 profile = json.loads((pathlib.Path(_dirs[0]) / '<SLUG>.json').read_text())
 signal_status = profile.get('acoustic', {}).get('signalStatus', {})
 
@@ -2236,7 +2280,7 @@ This is information only. It adds no option, and the matrix routing is unchanged
     Select a result for every signal you tested. Escalated signals are shown for reference.
   </div>
   <div style="font-size:11px;color:var(--color-text-secondary);margin-bottom:14px">
-    When every signal is resolved, submitting switches the SDK config to production mode (<code>fakeSignals: false</code>).
+    When every signal is resolved, submitting switches the SDK Config to production mode (<code>fakeSignals: false</code>).
   </div>
 
   <div id="matrix" style="margin-bottom:16px">
@@ -2309,7 +2353,7 @@ function submitMatrix() {
 ```python
 import json, glob as _glob, pathlib
 
-_dirs = _glob.glob('/sessions/*/mnt/SDK-config-assistant/profiles')
+_dirs = _glob.glob('/sessions/*/mnt/sdk-config-assistant/profiles')
 profile_path = pathlib.Path(_dirs[0]) / '<SLUG>.json'
 profile = json.loads(profile_path.read_text())
 profile['acoustic']['sdkBundle']['validated'] = False
@@ -2330,7 +2374,7 @@ When `sendPrompt` fires `'ValidationMatrix: {...}'`, parse the JSON and update t
 ```python
 import json, pathlib, glob as _glob, datetime
 
-_dirs = _glob.glob('/sessions/*/mnt/SDK-config-assistant/profiles')
+_dirs = _glob.glob('/sessions/*/mnt/sdk-config-assistant/profiles')
 profile_path  = pathlib.Path(_dirs[0]) / '<SLUG>.json'
 profile      = json.loads(profile_path.read_text())
 signal_status = profile['acoustic']['signalStatus']
@@ -2480,7 +2524,7 @@ function submitIssueReasons() {
 ```python
 import json, pathlib, glob as _glob, datetime
 
-_dirs = _glob.glob('/sessions/*/mnt/SDK-config-assistant/profiles')
+_dirs = _glob.glob('/sessions/*/mnt/sdk-config-assistant/profiles')
 profile_path  = pathlib.Path(_dirs[0]) / '<SLUG>.json'
 profile       = json.loads(profile_path.read_text())
 signal_status = profile['acoustic']['signalStatus']
@@ -2597,7 +2641,7 @@ If any signals remain `blocked` or `not_tested` after the follow-ups, show one e
     but will not block the remaining workflow.
   </div>
   <div style="font-size:11px;color:var(--color-text-secondary);margin-bottom:8px">
-    If every other signal is resolved, continuing switches the SDK config to production mode (<code>fakeSignals: false</code>).
+    If every other signal is resolved, continuing switches the SDK Config to production mode (<code>fakeSignals: false</code>).
   </div>
   <!-- list blocked/not_tested signals here -->
   <div style="display:flex;gap:8px;margin-top:14px">
@@ -2651,7 +2695,7 @@ After updating profile and correction history:
 ```python
 import json, pathlib, glob as _glob
 
-_dirs = _glob.glob('/sessions/*/mnt/SDK-config-assistant/profiles')
+_dirs = _glob.glob('/sessions/*/mnt/sdk-config-assistant/profiles')
 profile_path  = pathlib.Path(_dirs[0]) / '<SLUG>.json'
 profile       = json.loads(profile_path.read_text())
 signal_status = profile['acoustic']['signalStatus']
@@ -2683,9 +2727,9 @@ If no improved evidence is found, set `correctionResult: 'no_better_evidence_fou
 
 ---
 
-**SI-G: Regenerate SDK for corrected signals**
+**SI-G: Regenerate the SDK Config for corrected signals**
 
-After updating the profile with any improved mappings, regenerate the SDK in test mode (same command as Step 9 Step B), then update `sdkBundle.path` and `sdkBundle.generatedAt` from the generator's JSON output (`bundle`). Call `mcp__cowork__present_files` with the regenerated `acoConnectSdkConfig-<domain-slug>.js` only. Then show the `signal_retest_bundle` widget (title: `signal_retest_bundle`, loading: `"Preparing corrected config…"`). Substitute `CORRECTED_SIGNAL_ROWS` with one row per signal in `to_reinspect` and `SDK_FILENAME` with the file name:
+After updating the profile with any improved mappings, regenerate the SDK Config in test mode (same command as Step 9 Step B), then update `sdkBundle.path` and `sdkBundle.generatedAt` from the generator's JSON output (`bundle`). Call `mcp__cowork__present_files` with the regenerated `acoConnectSdkConfig-<domain-slug>.js` only. Then show the `signal_retest_bundle` widget (title: `signal_retest_bundle`, loading: `"Preparing corrected config…"`). Substitute `CORRECTED_SIGNAL_ROWS` with one row per signal in `to_reinspect` and `SDK_FILENAME` with the file name:
 
 ```html
 <div style="padding:0.75rem 0;font-family:var(--font-sans)">
@@ -2738,14 +2782,14 @@ retest_rows_html = "\n".join(retest_rows)
 print(retest_rows_html)
 ```
 
-Show with `mcp__visualize__show_widget` (title: `signal_retest_matrix`, loading: `"Loading retest…"`). Use the same `submitMatrix` JS pattern as the main matrix but submit as `'RetestMatrix: {...}'`. Include the same line as the main matrix: "When every signal is resolved, submitting switches the SDK config to production mode (`fakeSignals: false`)."
+Show with `mcp__visualize__show_widget` (title: `signal_retest_matrix`, loading: `"Loading retest…"`). Use the same `submitMatrix` JS pattern as the main matrix but submit as `'RetestMatrix: {...}'`. Include the same line as the main matrix: "When every signal is resolved, submitting switches the SDK Config to production mode (`fakeSignals: false`)."
 
 **Parse `RetestMatrix` response and update profile:**
 
 ```python
 import json, pathlib, glob as _glob, datetime
 
-_dirs = _glob.glob('/sessions/*/mnt/SDK-config-assistant/profiles')
+_dirs = _glob.glob('/sessions/*/mnt/sdk-config-assistant/profiles')
 profile_path  = pathlib.Path(_dirs[0]) / '<SLUG>.json'
 profile       = json.loads(profile_path.read_text())
 signal_status = profile['acoustic']['signalStatus']
@@ -2845,7 +2889,7 @@ Once `issue_signals` are all resolved (each is either `passed`, `escalated`, `bl
 ```python
 import json, pathlib, glob as _glob
 
-_dirs = _glob.glob('/sessions/*/mnt/SDK-config-assistant/profiles')
+_dirs = _glob.glob('/sessions/*/mnt/sdk-config-assistant/profiles')
 profile = json.loads((pathlib.Path(_dirs[0]) / '<SLUG>.json').read_text())
 ss = profile['acoustic']['signalStatus']
 
@@ -2887,7 +2931,7 @@ When SI-J finds every signal resolved — the user's submission of a fully resol
 1. **Set `settings.mode = "production"` in the profile** and write it to disk. `validate_profile.py` accepts `"test"` and `"production"`, plus `"real"`, the older name for production that profiles saved by earlier versions may still hold; both production names produce the same flags. (`sdkBundle.mode` below is a separate field and also says `"production"`.)
 ```python
 import json, pathlib, glob as _glob
-_dirs = _glob.glob('/sessions/*/mnt/SDK-config-assistant/profiles')
+_dirs = _glob.glob('/sessions/*/mnt/sdk-config-assistant/profiles')
 profile_path = pathlib.Path(_dirs[0]) / '<SLUG>.json'
 profile = json.loads(profile_path.read_text())
 profile['settings']['mode'] = 'production'
@@ -2895,7 +2939,7 @@ profile_path.write_text(json.dumps(profile, indent=2))
 print('mode set to production')
 ```
 
-2. **Regenerate the SDK config** with `generate_sdk_patched.py`, exactly as in Step 9 Step B (same `--base-js assets/initLogSignal.js` and the same `--out` folder), now with `settings.mode = "production"`. If `validate_profile.py` reports errors in production mode (required mappings not confirmed), stop and show them as a single blocker line; do not switch the mode back to fake it. Never use `generate_sdk.py` here: it skips the TODO hard-block, the audience signal and the privacy-target update. The generator sets `fakeSignals: false`, `errorLog: false`, `eventLog: false`, `signalsLog: true`. If it exits with code 2, resolve the TODOs exactly as in Step 9 Step C. Confirm the output file flags before proceeding.
+2. **Regenerate the SDK Config** with `generate_sdk_patched.py`, exactly as in Step 9 Step B (same `--base-js assets/initLogSignal.js` and the same `--out` folder), now with `settings.mode = "production"`. If `validate_profile.py` reports errors in production mode (required mappings not confirmed), stop and show them as a single blocker line; do not switch the mode back to fake it. Never use `generate_sdk.py` here: it skips the TODO hard-block, the audience signal and the privacy-target update. The generator sets `fakeSignals: false`, `errorLog: false`, `eventLog: false`, `signalsLog: true`. If it exits with code 2, resolve the TODOs exactly as in Step 9 Step C. Confirm the output file flags before proceeding.
 
 3. **Run Step 12 (JS review)** — confirm `fakeSignals: false` and `errorLog: false` in the regenerated file. This is a mandatory check. Do not upload a config still showing `fakeSignals: true`.
 
@@ -2932,7 +2976,7 @@ Treat identically to "Not yet — come back later". Write the one sentence. Stop
 
 > ⛔ **HARD GATE — Step 10 pre-conditions:** Step 10 (CMS upload) may run ONLY when ALL of the following are true: (1) `step11Complete = true`, (2) `step12Complete = true`, (3) `step13Complete = true`, (4) `deploymentChoice === 'acoustic_cms'`. No route — production flip, regenerate, re-upload, or any other — may bypass this gate.
 
-### 10. Upload SDK to the Media Gallery (Connect CMS)
+### 10. Upload the SDK Config to the Media Gallery (Connect CMS)
 
 > ⛔ **HARD GATE — Steps 11, 12, 13, and Step 10-pre (Option 2 selected) must all be complete before this step runs.** Enhance functions must be written (Step 11), the generated JS reviewed (Step 12), signals verified in the browser (Step 13), and the user must have explicitly selected "Host it in the Media Gallery (Connect CMS)" in Step 10-pre. Starting the upload before all four are done is a skill defect. If any are incomplete, return to the missing step first.
 
@@ -2948,7 +2992,7 @@ Before starting the upload, call `mcp__visualize__show_widget` (title: `upload_l
     </div>
     <div>
       <div style="font-size:14px;font-weight:600;color:var(--color-text-primary)">Sign in to Acoustic Connect</div>
-      <div style="font-size:12px;color:var(--color-text-tertiary);margin-top:4px">Please make sure you're signed in to <strong>app.goacoustic.com</strong> in Chrome before we upload the SDK config to the Media Gallery (Connect CMS).</div>
+      <div style="font-size:12px;color:var(--color-text-tertiary);margin-top:4px">Please make sure you're signed in to <strong>app.goacoustic.com</strong> in Chrome before we upload the SDK Config to the Media Gallery (Connect CMS).</div>
     </div>
   </div>
   <button onclick="sendPrompt('I am signed in to Acoustic Connect — start the upload')" style="width:100%;padding:10px 16px;background:#1F1E5D;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:500;cursor:pointer;font-family:inherit">
@@ -2984,7 +3028,7 @@ Read the website profile to check for a previously uploaded asset:
 
 ```python
 import json, pathlib, glob as _glob
-_dirs = _glob.glob('/sessions/*/mnt/SDK-config-assistant/profiles')
+_dirs = _glob.glob('/sessions/*/mnt/sdk-config-assistant/profiles')
 profile_path = pathlib.Path(_dirs[0]) / '<SLUG>.json'
 profile = json.loads(profile_path.read_text())
 existing_uuid = profile.get('acoustic', {}).get('assetUuid', '')
@@ -2999,7 +3043,7 @@ Check the profile for a saved `subscriptionId` (the CMS UI org identifier — ca
 
 ```python
 import json, pathlib, glob as _glob
-_dirs = _glob.glob('/sessions/*/mnt/SDK-config-assistant/profiles')
+_dirs = _glob.glob('/sessions/*/mnt/sdk-config-assistant/profiles')
 p = json.loads((pathlib.Path(_dirs[0]) / '<SLUG>.json').read_text())
 sub_id = p.get('acoustic', {}).get('subscriptionId', '')
 print('subscriptionId:', sub_id or '(none)')
@@ -3067,7 +3111,7 @@ Call `mcp__visualize__show_widget` (title: `org_confirmation`) — substitute `C
 
 ```python
 import json, pathlib, glob as _glob
-_dirs = _glob.glob('/sessions/*/mnt/SDK-config-assistant/profiles')
+_dirs = _glob.glob('/sessions/*/mnt/sdk-config-assistant/profiles')
 _pf = pathlib.Path(_dirs[0]) / '<SLUG>.json'
 p = json.loads(_pf.read_text())
 p.setdefault('acoustic', {})
@@ -3100,16 +3144,16 @@ Then use `mcp__Claude_in_Chrome__get_page_text` to read the JSON response.
 
 > ⚠️ **URL preservation rule:** If the asset is found, always use Step B2. Creating a new asset when one already exists would invalidate the customer's live GTM tag or `<script src>`.
 
-**Step B — Upload SDK to the Media Gallery (Connect CMS) (new asset — direct API)**
+**Step B — Upload the SDK Config to the Media Gallery (Connect CMS) (new asset — direct API)**
 
 Uses the Acoustic Connect CMS REST API directly from within the authenticated browser tab. No file picker, no iframe, no modal interaction. This approach was proven against a live EU tenant on 2026-07-20.
 
-> **Narration rule — HARD STOP:** Immediately before starting any upload tool calls, call `mcp__visualize__show_widget` (title: `sdk_upload_progress`, loading: `"Uploading SDK config…"`) with the widget below. After that widget renders, execute B-3, B-3b, and B-4 **in complete silence** — zero prose, zero result echoes, zero confirmations between sub-steps. No chunk injection confirmations, no resource IDs, no asset IDs, no mediaIds, no "All N chunks injected" messages, no "Session 200 ✅" lines. Silence means silence: every word between the widget call and the final profile write is a T-11 defect. If a sub-step fails, emit the HTTP status code only. After the profile is written, emit `"Done — profile updated."` only.
+> **Narration rule — HARD STOP:** Immediately before starting any upload tool calls, call `mcp__visualize__show_widget` (title: `sdk_upload_progress`, loading: `"Uploading SDK Config…"`) with the widget below. After that widget renders, execute B-3, B-3b, and B-4 **in complete silence** — zero prose, zero result echoes, zero confirmations between sub-steps. No chunk injection confirmations, no resource IDs, no asset IDs, no mediaIds, no "All N chunks injected" messages, no "Session 200 ✅" lines. Silence means silence: every word between the widget call and the final profile write is a T-11 defect. If a sub-step fails, emit the HTTP status code only. After the profile is written, emit `"Done — profile updated."` only.
 >
 > ```html
 > <div style="padding:1.25rem 1.5rem;font-family:var(--font-sans);max-width:400px;display:flex;align-items:center;gap:14px">
 >   <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#706CFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;animation:spin 1.4s linear infinite"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
->   <span style="font-size:14px;color:var(--color-text-primary);font-weight:500">SDK config is being uploaded. Please wait.</span>
+>   <span style="font-size:14px;color:var(--color-text-primary);font-weight:500">SDK Config is being uploaded. Please wait.</span>
 >   <style>@keyframes spin{to{transform:rotate(360deg)}}</style>
 > </div>
 > ```
@@ -3160,7 +3204,7 @@ Read `window.__sessionCheck` after ~3s. If `200`, proceed. If `401` or `403`, ca
 
 After the user clicks the button, re-probe once. If still 403, emit `"Session still returning 403 — please check you are in the correct org."` and stop.
 
-The SDK config is ~40KB — too large for a single `javascript_tool` call. Split it into 5 chunks (~8KB each), inject into `window.__c[]`, join, then POST.
+The SDK Config is ~40KB — too large for a single `javascript_tool` call. Split it into 5 chunks (~8KB each), inject into `window.__c[]`, join, then POST.
 
 **B-1: Read and split the config using bash**
 
@@ -3168,8 +3212,8 @@ The SDK config is ~40KB — too large for a single `javascript_tool` call. Split
 python3 - <<'EOF'
 import math, re, sys
 import glob as _g
-_out = sorted(_g.glob('/sessions/*/mnt/SDK-config-assistant/outputs/*/acoConnectSdkConfig-{SLUG}.js'), key=__import__('os').path.getmtime, reverse=True)
-if not _out: sys.exit('SDK config not found under outputs/*/ for {SLUG}')
+_out = sorted(_g.glob('/sessions/*/mnt/sdk-config-assistant/*/acoConnectSdkConfig-{SLUG}.js'), key=__import__('os').path.getmtime, reverse=True)
+if not _out: sys.exit('SDK Config not found under sdk-config-assistant/*/ for {SLUG}')
 path = _out[0]
 content = open(path).read()
 n = 5
@@ -3186,14 +3230,14 @@ Replace `{SLUG}` with the actual slug (e.g. `acmeretail`). This verifies the fil
 
 **B-2: Encode and inject via `javascript_tool` — base64 method (required)**
 
-> **Why base64, not raw text:** The SDK config contains backticks, `${...}` template expressions, and backslashes. Embedding raw JS in a template literal inside a `javascript_tool` call requires three levels of escaping, which is error-prone and breaks on regeneration. Base64 encoding eliminates all escaping — only `[A-Za-z0-9+/=]` characters are ever injected. This approach is proven against production configs up to ~46 KB.
+> **Why base64, not raw text:** The SDK Config contains backticks, `${...}` template expressions, and backslashes. Embedding raw JS in a template literal inside a `javascript_tool` call requires three levels of escaping, which is error-prone and breaks on regeneration. Base64 encoding eliminates all escaping — only `[A-Za-z0-9+/=]` characters are ever injected. This approach is proven against production configs up to ~46 KB.
 
 **Step 1 — Encode the config to base64 in bash:**
 
 ```bash
 python3 - <<'EOF'
 import base64, math, glob as _g, os
-_f = _g.glob('/sessions/*/mnt/SDK-config-assistant/outputs/*/acoConnectSdkConfig-{SLUG}.js')
+_f = sorted(_g.glob('/sessions/*/mnt/sdk-config-assistant/*/acoConnectSdkConfig-{SLUG}.js'), key=os.path.getmtime, reverse=True)
 if not _f:
     _f = ['/root/.claude/skills/sdk-config-assistant/outputs/{SLUG}/acoConnectSdkConfig-{SLUG}.js']
 content = open(_f[0], 'rb').read()
@@ -3239,7 +3283,7 @@ The return value (e.g. `"c0p0: 2000"`) confirms the running byte count. Continue
 
 > **Important — async result capture:** `javascript_tool` does not automatically await top-level Promises. Store the result in `window.__uploadResult` and read it in a follow-up call after ~5 seconds.
 >
-> **Why base64 decode + Blob:** The SDK config contains backticks and `${...}` template expressions. Injecting raw text requires escaping; base64 does not. `atob()` decodes the assembled base64 string, a `Uint8Array` converts it to binary, and a `Blob` carries it as `application/javascript`. This is the proven pattern for production configs up to ~46 KB. Never use `window.__c` or send raw `jsContent` — use this approach only.
+> **Why base64 decode + Blob:** The SDK Config contains backticks and `${...}` template expressions. Injecting raw text requires escaping; base64 does not. `atob()` decodes the assembled base64 string, a `Uint8Array` converts it to binary, and a `Blob` carries it as `application/javascript`. This is the proven pattern for production configs up to ~46 KB. Never use `window.__c` or send raw `jsContent` — use this approach only.
 
 ```js
 // Call 1 — join base64 chunks, decode, and POST to /resources
@@ -3406,7 +3450,7 @@ After persisting the profile, show the `deployment` widget using `mcp__visualize
 > **Platform note:** The widget above shows the Magento deployment path. For non-Magento platforms, uncomment the GTM comment block and remove the Magento-specific admin path text.
 
 **Routing — `deployment` widget handler:**
-- `'Deployment acknowledged'` → proceed to `signals_configured` widget (Step 14 gate). Do NOT write the Step 14 prose or run Step 14b before `signals_configured` fires.
+- `'Deployment acknowledged'` → proceed to Step 14: render the `signals_configured` info widget, then write the Step 14 final response and run Step 14b in the same turn.
 - Derive test/production wording from the actual config state (`fakeSignals` value), not from a hardcoded string.
 - For a re-upload: state that the delivery URL is unchanged.
 - Do not claim "test mode active" after a production config upload.
@@ -3577,7 +3621,7 @@ Expect `publishStatus: "available"`. If not yet available, wait 5s and retry onc
 ```html
 <div style="padding:0.75rem 0;font-family:var(--font-sans)">
   <div style="font-size:13px;font-weight:600;color:var(--color-text-primary);margin-bottom:12px">
-    SDK updated ✅
+    SDK Config updated ✅
   </div>
   <div style="display:flex;flex-direction:column;gap:6px">
     <div style="background:var(--color-background-secondary);border-radius:8px;padding:8px 14px;font-size:12px">
@@ -3653,7 +3697,7 @@ If `deliveryUrl` is null (rare — the page loaded before performance entries we
 ```html
 <div style="padding:0.75rem 0;font-family:var(--font-sans)">
   <div style="font-size:13px;font-weight:600;color:var(--color-text-primary);margin-bottom:12px">
-    SDK uploaded to the Media Gallery (Connect CMS) ✅
+    SDK Config uploaded to the Media Gallery (Connect CMS) ✅
   </div>
   <div style="display:flex;flex-direction:column;gap:8px">
     <div style="background:var(--color-background-secondary);border-radius:8px;padding:10px 14px">
@@ -3682,7 +3726,7 @@ Substitute `SDK_FILENAME` and `DELIVERY_URL` with the values retrieved by the JS
 
 ```python
 import json, pathlib, glob as _glob
-_dirs = _glob.glob('/sessions/*/mnt/SDK-config-assistant/profiles')
+_dirs = _glob.glob('/sessions/*/mnt/sdk-config-assistant/profiles')
 profile_path = pathlib.Path(_dirs[0]) / '<SLUG>.json'
 profile = json.loads(profile_path.read_text())
 escalated = [
@@ -3699,7 +3743,7 @@ If `escalated` is non-empty, show an additional `show_widget` (title: `delivery_
   <div style="background:#FFF8E8;border-left:3px solid #F0C040;border-radius:8px;padding:12px 16px">
     <div style="font-size:12px;font-weight:600;color:#7A6800;margin-bottom:8px">⚠️ Signals requiring Acoustic Services assistance</div>
     <div style="font-size:11px;color:#7A6800;margin-bottom:10px">
-      The following signals were not configured by this skill. Please provide the SDK config above to your Acoustic Services contact so they can assist:
+      The following signals were not configured by this skill. Please provide the SDK Config above to your Acoustic Services contact so they can assist:
     </div>
     <div style="display:flex;flex-direction:column;gap:4px;margin-bottom:10px">
       <!-- ESCALATED_SIGNAL_ROWS -->
@@ -3713,7 +3757,7 @@ If `escalated` is non-empty, show an additional `show_widget` (title: `delivery_
 </div>
 ```
 
-> **If the delivery URL cannot be retrieved programmatically** (e.g. performance entries are empty after two retries): tell the user to click the three-dot menu on the SDK row in the content library → **"API information"**, and share the Delivery URL. Stay on `https://app.goacoustic.com/connect/Content/content-library` — do not navigate away. Then present it using the widget above.
+> **If the delivery URL cannot be retrieved programmatically** (e.g. performance entries are empty after two retries): tell the user to click the three-dot menu on the SDK Config row in the content library → **"API information"**, and share the Delivery URL. Stay on `https://app.goacoustic.com/connect/Content/content-library` — do not navigate away. Then present it using the widget above.
 
 **Persist profile after upload** — save all delivery fields back to the website profile JSON and write it to the persistent profiles index so it can be reused on future runs.
 
@@ -3779,14 +3823,14 @@ signal_status = profile["acoustic"].get("signalStatus", {})
 for sig, st in signal_status.items():
     print(f"  {sig}: completed={st.get('completed')}, result={st.get('validationResult','pending')}, attempts={st.get('attempts',0)}")
 
-# Mark the overall SDK configuration as complete
+# Mark the overall SDK Config as complete
 profile["acoustic"]["sdkConfigurationComplete"] = True
 
 # Write updated profile back
 profile_path.write_text(json.dumps(profile, indent=2))
 
 # Copy to persistent profiles/ index so Step 0 can find it next time
-_dirs = _glob.glob('/sessions/*/mnt/SDK-config-assistant/profiles')
+_dirs = _glob.glob('/sessions/*/mnt/sdk-config-assistant/profiles')
 if not _dirs:
     raise SystemExit('Profiles root not found — no folder added to this session. Re-run the Pre-step storage check.')
 profiles_dir = pathlib.Path(_dirs[0])
@@ -3797,7 +3841,7 @@ shutil.copy(profile_path, dest)
 print(f"Profile saved → {dest}")
 ```
 
-> **Note on paths**: The `profiles/` directory is in the added folder (`SDK-config-assistant/profiles/`). This persists between sessions. The website profile used as the source is the `-customer-signal-config.json` file the generator produces — it already contains all signal mappings. We save a copy here so Step 0 can list and reload it.
+> **Note on paths**: The `profiles/` directory is in the added folder (`sdk-config-assistant/profiles/`). This persists between sessions. The website profile used as the source is the `-customer-signal-config.json` file the generator produces — it already contains all signal mappings. We save a copy here so Step 0 can list and reload it.
 
 ---
 
@@ -3847,7 +3891,7 @@ Read the current signal status to determine what still needs attention:
 
 ```python
 import json, pathlib, glob as _glob
-_dirs = _glob.glob('/sessions/*/mnt/SDK-config-assistant/profiles')
+_dirs = _glob.glob('/sessions/*/mnt/sdk-config-assistant/profiles')
 profile       = json.loads((pathlib.Path(_dirs[0]) / '<SLUG>.json').read_text())
 ss            = profile['acoustic']['signalStatus']
 corrected     = [s for s, v in ss.items() if v.get('correctionHistory') and v.get('validationResult') != 'escalated']
@@ -3908,14 +3952,14 @@ Show the deployment choice widget using `mcp__visualize__show_widget` (title: `d
 .btn-cont{background:#706CFF;color:#fff;border:none;border-radius:8px;padding:9px 20px;font-size:12px;font-weight:600;width:100%;margin-top:12px;cursor:pointer;transition:opacity .15s;font-family:inherit}
 </style>
 <div class="ep">
-  <div class="section-title">How would you like to deploy the SDK config?</div>
-  <div class="section-sub">Choose how the customer's SDK config file will be served to their website.</div>
+  <div class="section-title">How would you like to deploy the SDK Config?</div>
+  <div class="section-sub">Choose how the customer's SDK Config file will be served to their website.</div>
   <div class="pills" id="dp">
     <button type="button" class="pill sel" data-value="download_and_host" onclick="sp(this)">
       <span class="chk" aria-hidden="true">✓</span>
       <div>
         <div class="pill-label">⬇ Download and host it <span class="default-badge">Recommended</span></div>
-        <div class="pill-desc">Hand the SDK config file over for the customer to upload to their own web server.</div>
+        <div class="pill-desc">Hand the SDK Config file over for the customer to upload to their own web server.</div>
       </div>
     </button>
     <button type="button" class="pill" data-value="other_options" onclick="sp(this)">
@@ -3939,13 +3983,13 @@ function sub(){sendPrompt('Deployment choice: '+document.getElementById('f-deplo
 
 #### When `sendPrompt` fires `'Deployment choice: download_and_host'`
 
-Call `mcp__cowork__present_files` with the SDK config file path (the `acoConnectSdkConfig-<slug>.js` file in the customer's output directory).
+Call `mcp__cowork__present_files` with the SDK Config file path (the `acoConnectSdkConfig-<slug>.js` file in `sdk-config-assistant/<host>/`).
 
 Then show the hosting instructions widget using `mcp__visualize__show_widget` (title: `deployment_instructions`, loading: `"Loading hosting instructions…"`). Substitute `<FILENAME>` with the actual config filename (e.g. `acoConnectSdkConfig-acmeretail.js`):
 
 ```html
 <div style="font-family:var(--font-sans);padding:.75rem 0;max-width:540px">
-  <div style="font-size:14px;font-weight:600;color:var(--color-text-primary);margin-bottom:4px">Deploy the Connect SDK config on your website</div>
+  <div style="font-size:14px;font-weight:600;color:var(--color-text-primary);margin-bottom:4px">Deploy the Connect SDK Config on your website</div>
   <div style="font-size:12px;color:var(--color-text-secondary);margin-bottom:16px">Follow these steps to host the customised JavaScript file on your web server.</div>
   <div style="display:flex;flex-direction:column;gap:12px">
     <div style="display:flex;gap:12px;align-items:flex-start">
@@ -3963,7 +4007,7 @@ Then show the hosting instructions widget using `mcp__visualize__show_widget` (t
       <div style="font-size:12px;color:var(--color-text-primary);padding-top:2px">Push the changes to the server.</div>
     </div>
   </div>
-  <div style="margin-top:14px;background:#FEF9C3;border:1px solid #FDE68A;border-radius:8px;padding:10px 14px;font-size:11px;color:#854D0E"><strong>⚠ Warning</strong> — If possible, avoid bundling the Connect SDK config JavaScript with other JavaScript files.</div>
+  <div style="margin-top:14px;background:#FEF9C3;border:1px solid #FDE68A;border-radius:8px;padding:10px 14px;font-size:11px;color:#854D0E"><strong>⚠ Warning</strong> — If possible, avoid bundling the Connect SDK Config JavaScript with other JavaScript files.</div>
   <div style="margin-top:14px">
     <div style="font-size:12px;font-weight:600;color:var(--color-text-primary);margin-bottom:8px">Setup verification</div>
     <div style="font-size:11px;font-weight:600;color:var(--color-text-secondary);margin-bottom:4px">Basic</div>
@@ -3978,7 +4022,7 @@ Then show the hosting instructions widget using `mcp__visualize__show_widget` (t
 </div>
 ```
 
-When `sendPrompt` fires `'Deployment instructions acknowledged — proceed to final response'`: proceed directly to **Step 14**. Do not run Step 10.
+When `sendPrompt` fires `'Deployment instructions acknowledged — proceed to final response'`: proceed directly to **Step 14** (render `signals_configured`, then the final response and Step 14b, all in this turn — there is no further Continue to wait for). Do not run Step 10.
 
 ---
 
@@ -4003,13 +4047,13 @@ Show the secondary deployment widget using `mcp__visualize__show_widget` (title:
 </style>
 <div class="ep">
   <div class="section-title">Other options on deploying the Connect Config</div>
-  <div class="section-sub">Select how you'd like to deploy the SDK config via Acoustic.</div>
+  <div class="section-sub">Select how you'd like to deploy the SDK Config via Acoustic.</div>
   <div class="pills" id="dp2">
     <button type="button" class="pill" data-value="acoustic_cms" onclick="sp(this)">
       <span class="chk" aria-hidden="true">✓</span>
       <div>
         <div class="pill-label">☁ Host it in the Media Gallery (Connect CMS)</div>
-        <div class="pill-desc">Upload the SDK config to the Media Gallery (Connect CMS). The config is served via the Acoustic CDN — the customer references it using a delivery URL in their GTM tag or page template.</div>
+        <div class="pill-desc">Upload the SDK Config to the Media Gallery (Connect CMS). The config is served via the Acoustic CDN — the customer references it using a delivery URL in their GTM tag or page template.</div>
       </div>
     </button>
   </div>
@@ -4038,7 +4082,7 @@ When `sendPrompt` fires `'Deployment other: acoustic_cms'`: proceed to **Step 10
     </div>
     <div>
       <div style="font-size:14px;font-weight:600;color:var(--color-text-primary)">Signals configured (N of N — {TIER} tier)</div>
-      <div style="font-size:11px;color:var(--color-text-tertiary);margin-top:1px">SDK config · test mode</div>
+      <div style="font-size:11px;color:var(--color-text-tertiary);margin-top:1px">SDK Config · test mode</div>
     </div>
   </div>
   <table style="width:100%;border-collapse:collapse;font-size:12px">
@@ -4061,20 +4105,16 @@ When `sendPrompt` fires `'Deployment other: acoustic_cms'`: proceed to **Step 10
     </tbody>
   </table>
   <div style="margin-top:10px;font-size:11px;color:var(--color-text-tertiary)">
-    Deploy the &lt;script&gt; tag, validate all signals, then confirm to enable production mode.
+    Deploy the &lt;script&gt; tag and validate all signals.
   </div>
-  <button onclick="sendPrompt('Signals confirmed — proceed to session complete')" style="width:100%;margin-top:14px;padding:9px 16px;background:#1F1E5D;color:#C8FF49;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit">Continue</button>
 </div>
 ```
 
-**Routing — `signals_configured` is a hard gate:**
+**Routing — `signals_configured` is an info widget, not a gate.** It has no button and no `sendPrompt`. A second "Continue" straight after the hosting instructions asks the user for nothing and, in a live run, left the session looping on an already-used Continue button.
 1. Render the `signals_configured` widget.
-2. **Stop and wait** for the user to click Continue.
-3. Do NOT write the Step 14 final response, run Step 14b, or render any session-completion widget before the button fires.
-4. When `sendPrompt` fires `'Signals confirmed — proceed to session complete'`:
-   - Produce the Step 14 final response using `references/output-contract.md`.
-   - Run Step 14b analytics/session processing in its defined order.
-   - Render the session-completion widget.
+2. In the same turn, without waiting, produce the Step 14 final response using `references/output-contract.md`, then run Step 14b in its defined order and render the `session_complete` widget. The `session_complete` widget is the next control the user sees.
+3. If `show_widget` is unavailable, this is a Category 1 widget: output the concise plain-text summary and continue immediately. Never use `AskUserQuestion` for it.
+4. **Stale buttons.** If a `sendPrompt` from a widget you have already handled fires again (for example `'Deployment instructions acknowledged — proceed to final response'` or `'Deployment acknowledged'` a second time), do not tell the user to "click Continue above" and do not claim a widget is already shown. Check what was last completed and run the next step that has not run: if Step 14 has not been written, write it; if `session_complete` has not been shown, show it; otherwise re-render the most recent widget that is still waiting on the user.
 
 **Dynamic values in `signals_configured` widget:**
 - Mode label: use `production mode` when `fakeSignals: false` in the actual config; `test mode` when `fakeSignals: true`. Never hardcode either.
@@ -4149,9 +4189,9 @@ This step runs immediately after the Step 14 final response. It has four sub-ste
 
 #### 14b-A — Write the analytics sidecar
 
-Before showing the completion widget, write one run record to `<slug>.analytics.json`. This is a sidecar file — the operational profile (`<slug>.json`) is never modified here.
+Before showing the completion widget, write this run's record to `<slug>.analytics.json`. If Step 1a-R already wrote a start record for this `runId`, the script completes that record instead of adding a second one. This is a sidecar file — the operational profile (`<slug>.json`) is never modified here.
 
-**Analytics failure is non-critical.** If the bash script fails or the analytics file cannot be written, emit one concise warning line in chat and proceed immediately to 14b-B. Do not roll back the SDK work, do not alter readiness, do not re-run the upload.
+**Analytics failure is non-critical.** If the bash script fails or the analytics file cannot be written, emit one concise warning line in chat and proceed immediately to 14b-B. Do not roll back the SDK Config work, do not alter readiness, do not re-run the upload.
 
 Assemble the run record from session variables gathered during the run. Substitute every `<PLACEHOLDER>` with the actual value before running the script. Use JSON arrays (e.g. `'["a","b"]'`) for array fields; use `"true"` or `"false"` strings for booleans.
 
@@ -4186,7 +4226,7 @@ def env_json(key, default):
 def env_bool(key):
     return os.environ.get(key, 'false').lower() == 'true'
 
-dirs = glob.glob('/sessions/*/mnt/SDK-config-assistant/profiles')
+dirs = glob.glob('/sessions/*/mnt/sdk-config-assistant/profiles')
 if not dirs:
     print('WARNING: profiles dir not found — analytics not saved'); sys.exit(0)
 
@@ -4206,6 +4246,7 @@ except:
 
 run_record = {
     'runId': run_id,
+    'status': 'completed',
     'startedAt': started_at,
     'completedAt': completed_at,
     'durationSeconds': duration_seconds,
@@ -4233,6 +4274,7 @@ run_record = {
     'feedbackId': None,
     'feedbackSkipped': False,
     'handoffChoice': None,   # set by Step 14b-E only if the user clicks "Use coding assistant"
+    'handoffSurface': None,  # set by Step 14b-E with handoffChoice: desktop | vscode_or_terminal
 }
 
 # Copy per-signal status from operational profile — read-only snapshot for analytics
@@ -4297,7 +4339,19 @@ if operator_email:
     analytics['operator'] = {'email': operator_email, 'source': 'meta[name=acoustic-id] on app.goacoustic.com'}
 analytics['lastUpdatedAt'] = completed_at
 
-analytics['runHistory'].append(run_record)
+# Complete this run's start record (written after Step 1a by scripts/analytics_start.py)
+# instead of adding a second record for the same runId.
+existing = next((r for r in analytics['runHistory'] if isinstance(r, dict) and r.get('runId') == run_id), None)
+if existing is None:
+    analytics['runHistory'].append(run_record)
+else:
+    if not run_record.get('operatorEmail') and existing.get('operatorEmail'):
+        run_record['operatorEmail'] = existing['operatorEmail']
+    for k in ('customerName', 'productionDomain'):
+        if existing.get(k):
+            run_record.setdefault(k, existing[k])
+    existing.clear()
+    existing.update(run_record)
 
 try:
     analytics_path.write_text(json.dumps(analytics, indent=2, ensure_ascii=False) + '\n')
@@ -4313,6 +4367,7 @@ except Exception as e:
 | Field | Source |
 |---|---|
 | `runId` | Generated at Pre-step |
+| `status` | `started` from Step 1a-R until this step sets `completed`. A record still `started` is a session that stopped before Step 14b. Records written before Step 1a-R existed have no `status`. |
 | `startedAt` | Captured at Pre-step |
 | `workflowMode` | Step 0 answer (`new` or `existing`) |
 | `action` | Step 0 sub-path: new onboarding → `full_onboarding`; existing → `regenerate`, `reinspect_and_regenerate`, `reupload`, or `resume_validation` |
@@ -4348,6 +4403,8 @@ except Exception as e:
 
 `handoffChoice` (set only by Step 14b-E; `null` when the user never clicked "Use coding assistant"): `declined` · `cancelled` · `new` · `replaced` · `alongside` · `failed`
 
+`handoffSurface` (set only by Step 14b-E, from the `handoff_confirm` choice; `null` when declined or never clicked, and absent from records written before it existed): `desktop` · `vscode_or_terminal`
+
 `issueAreas`: `inspection` · `signal_mapping` · `generation` · `static_validation` · `user_validation` · `browser_verification` · `cms_upload` · `workflow` · `other`
 
 `reasonCodes`: `selector_not_found` · `data_layer_missing` · `required_field_missing` · `page_unreachable` · `authentication_required` · `email_verification_required` · `cross_domain_journey` · `browser_tool_failure` · `signal_not_triggered` · `payload_invalid` · `duplicate_signal` · `cms_upload_failed` · `cms_republish_failed` · `user_validation_incomplete` · `unsupported_site_pattern` · `manual_mapping_required` · `workflow_deviation` · `other`
@@ -4367,7 +4424,7 @@ After writing (or attempting) the analytics sidecar, show a completion widget us
 - `not_ready` → icon `⚠️`, heading `"Review required before production"`
 
 **Status line rules (show only lines that are true):**
-- Show `"SDK config generated"` only if `bundleGenerated = true`
+- Show `"SDK Config generated"` only if `bundleGenerated = true`
 - Show `"Static validation passed"` only if `staticValidationPassed = true`
 - Show `"Browser verification passed"` only if `browserValidationPassed = true`
 - Show `"Uploaded to the Media Gallery (Connect CMS)"` only if `cmsUploaded = true`
@@ -4450,7 +4507,7 @@ Signal labels: `identification` → "Identification" · `accountRegistered` → 
 </style>
 <div style="padding:1.5rem;font-family:var(--font-sans);max-width:480px;margin:0 auto">
   <div style="font-size:15px;font-weight:600;color:var(--color-text-primary);margin-bottom:4px">Session feedback</div>
-  <div style="font-size:12px;color:var(--color-text-secondary);margin-bottom:16px;line-height:1.5">How would you rate the SDK config produced in this session?</div>
+  <div style="font-size:12px;color:var(--color-text-secondary);margin-bottom:16px;line-height:1.5">How would you rate the SDK Config produced in this session?</div>
 
   <input type="hidden" id="outcome-val" value="">
   <div id="outcome-pills" style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px">
@@ -4468,7 +4525,7 @@ Signal labels: `identification` → "Identification" · `accountRegistered` → 
     </button>
     <button class="pill" data-value="run_failed" onclick="sp(this)">
       <span class="chk" aria-hidden="true">✓</span>
-      <div><strong style="font-size:12px">Run failed</strong><div style="font-size:11px;color:var(--color-text-secondary);margin-top:2px">The skill could not generate or validate a usable SDK config.</div></div>
+      <div><strong style="font-size:12px">Run failed</strong><div style="font-size:11px;color:var(--color-text-secondary);margin-top:2px">The skill could not generate or validate a usable SDK Config.</div></div>
     </button>
   </div>
 
@@ -4603,7 +4660,7 @@ entry = {
 if comment_raw:
     entry['comment'] = comment_raw[:2000]
 
-dirs = glob.glob('/sessions/*/mnt/SDK-config-assistant/profiles')
+dirs = glob.glob('/sessions/*/mnt/sdk-config-assistant/profiles')
 if not dirs:
     print('WARNING: profiles dir not found'); sys.exit(0)
 
@@ -4648,7 +4705,7 @@ import json, os, pathlib, glob, datetime, sys
 slug = os.environ.get('SLUG','')
 run_id = os.environ.get('RUN_ID','')
 
-dirs = glob.glob('/sessions/*/mnt/SDK-config-assistant/profiles')
+dirs = glob.glob('/sessions/*/mnt/sdk-config-assistant/profiles')
 if not dirs:
     print('WARNING: profiles dir not found'); sys.exit(0)
 
@@ -4713,9 +4770,9 @@ Show using `mcp__visualize__show_widget` (title: `feedback_saved`, loading: `"Sa
 `<span style="display:inline-block;background:#00DF8F;color:#1F1E5D;font-size:9px;font-weight:700;border-radius:4px;padding:1px 6px;margin-left:6px;vertical-align:middle;text-transform:uppercase">Recommended</span>`
 Otherwise set it to an empty string. The button is shown in both cases.
 
-**Handover signals** (used here, in E-1 and in E-3) are: every signal in `acoustic.signalStatus` whose `validationResult` is `escalated` or `blocked`, **plus** every signal named in `profile.blockers[]` (by its `signal` key) that is not `passed` in `acoustic.signalStatus`. The second group covers signals that never made it into the SDK, such as a sign-in on a separate host or an order page that could not be inspected. They have no `signalStatus` entry, so reading `signalStatus` alone misses them.
+**Handover signals** (used here, in E-1 and in E-3) are: every signal in `acoustic.signalStatus` whose `validationResult` is `escalated` or `blocked`, **plus** every signal named in `profile.blockers[]` (by its `signal` key) that is not `passed` in `acoustic.signalStatus`. The second group covers signals that never made it into the SDK Config, such as a sign-in on a separate host or an order page that could not be inspected. They have no `signalStatus` entry, so reading `signalStatus` alone misses them.
 
-**Requirement.** The coding assistant (`sdk-config-coding`) is in the same plugin but runs only in Claude Code (terminal or IDE), never in Cowork. The button is always shown; the `handoff_confirm` widget tells the user where it runs before anything is copied.
+**Requirement.** The coding assistant (`sdk-config-coding`) is in the same plugin but runs only in Claude Code — the Code tab of Claude Desktop, VS Code / JetBrains, or the terminal — never in Cowork. The button is always shown; the `handoff_confirm` widget tells the user where it runs before anything is copied.
 
 ```html
 <div style="font-family:var(--font-sans,system-ui);max-width:480px;padding:1.5rem;box-sizing:border-box">
@@ -4771,15 +4828,15 @@ Clear all customer context (including `runId`, `runStartedAt`, and all run-state
 
 #### 14b-E — Coding assistant handoff (optional)
 
-> ⛔ **HARD GUARDRAIL — entry point.** This sub-step runs **only** when `sendPrompt` fires `'Use coding assistant'` from the `feedback_saved` widget (or its `AskUserQuestion` fallback). It never runs on its own, never runs before 14b-D has completed, and never changes anything in `outputs/`, the operational profile's `signals`, `acoustic.signalStatus`, `settings` or `acoustic.sdkBundle`. The only profile change it makes is the top-level `handoff` object, written in E-3 after the files are copied. The only analytics change is `handoffChoice` / `handoffAt` on this run's record.
+> ⛔ **HARD GUARDRAIL — entry point.** This sub-step runs **only** when `sendPrompt` fires `'Use coding assistant'` from the `feedback_saved` widget (or its `AskUserQuestion` fallback). It never runs on its own, never runs before 14b-D has completed, and never changes anything in this skill's own site folder (`sdk-config-assistant/<host>/`), the operational profile's `signals`, `acoustic.signalStatus`, `settings` or `acoustic.sdkBundle`. The only profile change it makes is the top-level `handoff` object, written in E-3 after the files are copied. The only analytics change is `handoffChoice` / `handoffSurface` / `handoffAt` on this run's record.
 
-The coding assistant (`sdk-config-coding`) is a second skill in the same plugin, but it runs only in Claude Code (terminal or IDE), never in Cowork. The two skills share nothing except the files written here. Handoffs made by older versions of this skill went to `SDK-coding-assistant/sites/` (the coding assistant's old name); Step 0c-H still reads results from there. This skill cannot open it, link to it or check whether it is installed. It can only copy the files and tell the user where they are.
+The coding assistant (`sdk-config-coding`) is a second skill in the same plugin, but it runs only in Claude Code — the **Code** tab of Claude Desktop, VS Code / JetBrains, or the terminal — never in Cowork. Claude Code must be on the user's Claude account; Cowork access alone is not enough, and this skill can't check it, so E-1 states it before anything is copied. The two skills share nothing except the files written here. Handoffs go to `sdk-config-coding/<host>/`. Older versions of this skill wrote them to `SDK-config-coding/sites/` or `SDK-coding-assistant/sites/` (the coding assistant's old name); the Pre-step's `migrate_layout.py` moves those, and Step 0c-H still accepts a profile that records either old path. This skill cannot open it, link to it or check whether it is installed. It can only copy the files and tell the user where they are.
 
 **Silence rule.** E-2 and E-3 run silently: no prose between tool calls, as everywhere else in this skill.
 
 ##### E-1 — Confirm
 
-Show `mcp__visualize__show_widget` (title: `handoff_confirm`, loading: `"Loading…"`). If `show_widget` is unavailable, use `AskUserQuestion` with the same question and the two options **"Yes, hand off"** / **"No, go back"**.
+Show `mcp__visualize__show_widget` (title: `handoff_confirm`, loading: `"Loading…"`). If `show_widget` is unavailable, use `AskUserQuestion` with the same question, the Claude Code requirement in the question text, and the three options **"Yes — continue in Claude Desktop (Code tab)"** / **"Yes — continue in VS Code or a terminal"** / **"No, go back"**.
 
 Substitute `HOSTNAME` (derived as in E-2) and `ESCALATED_LINE`: when any **handover signal** exists (defined under `HANDOFF_BADGE` above), `ESCALATED_LINE` is `<div style="font-size:12px;color:var(--color-text-primary);margin-bottom:10px"><strong>Still need work:</strong> SIGNAL_LIST</div>` with the comma-separated profile keys; otherwise it is empty.
 
@@ -4788,19 +4845,25 @@ Substitute `HOSTNAME` (derived as in E-2) and `ESCALATED_LINE`: when any **hando
   <div style="font-size:14px;font-weight:600;color:var(--color-text-primary);margin-bottom:8px">Continue in the coding assistant?</div>
   ESCALATED_LINE
   <div style="font-size:12px;color:var(--color-text-secondary);line-height:1.6;margin-bottom:12px">
-    The coding assistant lets you hand-write and test signals against the live site. It runs only in <strong>Claude Code</strong> (terminal or IDE), not here. It is the sdk-config-coding skill, which comes with this same plugin.<br><br>
-    The SDK and its report will be copied to <code>SDK-config-coding/sites/HOSTNAME/</code> inside the folder added to this session, in test mode (<code>fakeSignals: true</code>). The files in this skill's outputs are not changed.<br><br>
-    <strong>The handoff is one-way for code.</strong> Changes made in the coding assistant can't be brought back into this skill. Re-running this skill later produces a new SDK. The coding assistant can save a short summary of what it fixed, which this skill shows the next time you load this profile.
+    The coding assistant lets you hand-write and test signals against the live site. It is the sdk-config-coding skill, which comes with this same plugin, and it runs in <strong>Claude Code</strong>, not here in Cowork: the <strong>Code</strong> tab of this app, VS Code, or a terminal.<br><br>
+    <strong>Needs Claude Code on your Claude account</strong> — Cowork access alone isn't enough. If this app has no Code tab, or you can't start a local session there, you don't have it yet: ask your Claude admin for access before handing off.<br><br>
+    The SDK Config and its report will be copied to <code>sdk-config-coding/HOSTNAME/</code> inside the folder added to this session, in test mode (<code>fakeSignals: true</code>). The files in <code>sdk-config-assistant/HOSTNAME/</code> are not changed.<br><br>
+    <strong>The handoff is one-way for code.</strong> Changes made in the coding assistant can't be brought back into this skill. Re-running this skill later produces a new SDK Config. The coding assistant can save a short summary of what it fixed, which this skill shows the next time you load this profile.
   </div>
-  <div style="display:flex;gap:8px">
-    <button onclick="sendPrompt('Handoff: yes')" style="flex:1;background:#1F1E5D;color:#C8FF49;border:none;border-radius:8px;padding:10px 0;font-size:13px;font-weight:600;cursor:pointer">Yes, hand off</button>
-    <button onclick="sendPrompt('Handoff: no')" style="flex:1;background:var(--color-background-secondary);color:var(--color-text-primary);border:1px solid var(--color-border-tertiary);border-radius:8px;padding:10px 0;font-size:13px;font-weight:600;cursor:pointer">No, go back</button>
+  <div style="font-size:12px;font-weight:600;color:var(--color-text-primary);margin-bottom:8px">Where will you continue?</div>
+  <div style="display:flex;flex-direction:column;gap:8px">
+    <button onclick="sendPrompt('Handoff: desktop')" style="width:100%;text-align:left;background:#1F1E5D;color:#C8FF49;border:none;border-radius:8px;padding:10px 14px;font-size:13px;font-weight:600;cursor:pointer">Here in Claude Desktop (Code tab)</button>
+    <button onclick="sendPrompt('Handoff: vscode')" style="width:100%;text-align:left;background:var(--color-background-secondary);color:var(--color-text-primary);border:1px solid var(--color-border-tertiary);border-radius:8px;padding:10px 14px;font-size:13px;font-weight:600;cursor:pointer">VS Code or a terminal</button>
+    <button onclick="sendPrompt('Handoff: no')" style="width:100%;text-align:left;background:var(--color-background-secondary);color:var(--color-text-secondary);border:1px solid var(--color-border-tertiary);border-radius:8px;padding:10px 14px;font-size:13px;cursor:pointer">No, go back</button>
   </div>
 </div>
 ```
 
 - `'Handoff: no'` → record `handoffChoice = "declined"` with the E-4 analytics script, then re-render `feedback_saved` exactly as before (the countdown restarts). Nothing else is written.
-- `'Handoff: yes'` → E-2.
+- `'Handoff: desktop'` → set `HANDOFF_SURFACE = desktop`, then E-2.
+- `'Handoff: vscode'` → set `HANDOFF_SURFACE = vscode_or_terminal`, then E-2.
+
+Keep `HANDOFF_SURFACE` until E-5. Every E-4 run after a yes passes it (`cancelled` and `failed` included); after `'Handoff: no'` pass it empty. The copy in E-3 is the same for both surfaces.
 
 ##### E-2 — Check the destination
 
@@ -4810,11 +4873,11 @@ import json, os, re, glob, pathlib
 mnt = glob.glob('/sessions/*/mnt')
 if not mnt: print('ERROR|no_folder'); raise SystemExit
 root = pathlib.Path(mnt[0])
-p = json.loads((root/'SDK-config-assistant'/'profiles'/(os.environ['SLUG']+'.json')).read_text())
+p = json.loads((root/'sdk-config-assistant'/'profiles'/(os.environ['SLUG']+'.json')).read_text())
 d = (p.get('customer',{}).get('productionDomain') or '').strip().lower()
 d = re.sub(r'^[a-z][a-z0-9+.-]*://', '', d).split('/')[0].split('?')[0].split('#')[0].split(':')[0].rstrip('.')
 if not d: print('ERROR|no_domain'); raise SystemExit
-dest = root/'SDK-config-coding'/'sites'/d
+dest = root/'sdk-config-coding'/d
 print(('EXISTS|' if dest.exists() else 'NEW|') + d)
 "
 ```
@@ -4828,7 +4891,7 @@ print(('EXISTS|' if dest.exists() else 'NEW|') + d)
 ```html
 <div style="font-family:var(--font-sans);padding:1.25rem;max-width:480px">
   <div style="font-size:14px;font-weight:600;color:var(--color-text-primary);margin-bottom:8px">A folder for HOSTNAME already exists</div>
-  <div style="font-size:12px;color:var(--color-text-secondary);line-height:1.6;margin-bottom:12px">It's in <code>SDK-config-coding/sites/</code> and may contain work done in the coding assistant. Nothing is deleted or overwritten either way.</div>
+  <div style="font-size:12px;color:var(--color-text-secondary);line-height:1.6;margin-bottom:12px">It's in <code>sdk-config-coding/</code> and may contain work done in the coding assistant. Nothing is deleted or overwritten either way.</div>
   <div style="display:flex;flex-direction:column;gap:8px">
     <button onclick="sendPrompt('Handoff destination: replaced')" style="width:100%;text-align:left;background:#1F1E5D;color:#C8FF49;border:none;border-radius:8px;padding:10px 14px;font-size:13px;font-weight:600;cursor:pointer">Replace (keep a backup)</button>
     <button onclick="sendPrompt('Handoff destination: alongside')" style="width:100%;text-align:left;background:var(--color-background-secondary);color:var(--color-text-primary);border:1px solid var(--color-border-tertiary);border-radius:8px;padding:10px 14px;font-size:13px;font-weight:600;cursor:pointer">Copy alongside</button>
@@ -4861,7 +4924,7 @@ iso = now.strftime('%Y-%m-%dT%H:%M:%SZ')
 mnt = glob.glob('/sessions/*/mnt')
 if not mnt: out('failed', reason='no_folder')
 root = pathlib.Path(mnt[0])
-cfg_root = root/'SDK-config-assistant'
+cfg_root = root/'sdk-config-assistant'
 profile_path = cfg_root/'profiles'/(slug+'.json')
 profile = json.loads(profile_path.read_text())
 cust = profile.get('customer', {})
@@ -4877,16 +4940,17 @@ if not host: out('failed', reason='no_domain')
 bundle_name = 'acoConnectSdkConfig-' + domain_slug(raw_domain) + '.js'
 cust_slug = slugify(cust.get('name',''))
 
-# 1. Locate this run's SDK. An exact file name never matches *.tamperMonkeyConfig.js.
+# 1. Locate this run's SDK Config. An exact file name never matches *.tamperMonkeyConfig.js.
 bp = (profile.get('acoustic',{}).get('sdkBundle',{}) or {}).get('path') or ''
 if bp and pathlib.Path(bp).name == bundle_name and pathlib.Path(bp).is_file():
     sdk = pathlib.Path(bp)
 else:
     c = []
-    out_roots = [cfg_root/'outputs', root/'.claude'/'skills'/'sdk-config-assistant'/'outputs']
+    legacy = root/'.claude'/'skills'/'sdk-config-assistant'/'outputs'
+    out_dirs = [cfg_root/host, cfg_root/(host + '-*'), legacy/(cust_slug + '*'), legacy/(slug + '*')]
     for name in dict.fromkeys([bundle_name, 'acoConnectSdkConfig-' + domain_slug(host) + '.js']):
-        for o in out_roots:
-            c += glob.glob(str(o/(cust_slug + '*')/name)) + glob.glob(str(o/(slug + '*')/name))
+        for o in out_dirs:
+            c += glob.glob(str(o/name))
         c = sorted(set(c), key=os.path.getmtime, reverse=True)
         if c: break
     if not c: out('failed', reason='sdk_not_found', file=bundle_name)
@@ -4926,20 +4990,20 @@ handed = list(dict.fromkeys([s for s, v in ss.items() if v.get('validationResult
 cfg_copy['handoffMeta']['signalsHandedOver'] = handed
 cfg_copy['handoffMeta']['blockersAtHandoff'] = [{k: b.get(k) for k in ('signal','severity','summary','resolution')} for b in blk]
 
-# 4. Review copy with a Handoff section. The original in outputs/ is not changed.
+# 4. Review copy with a Handoff section. The original in sdk-config-assistant/<host>/ is not changed.
 rows = ['| ' + ' | '.join([s, str(v.get('validationResult','')), str(v.get('attempts',0)), ', '.join(v.get('reasonCodes',[]) or [])]) + ' |' for s, v in ss.items()]
-rows += ['| ' + ' | '.join([b['signal'], 'blocked (not in SDK)', '0', 'blocker: ' + str(b.get('summary') or 'not stated')]) + ' |'
+rows += ['| ' + ' | '.join([b['signal'], 'blocked (not in SDK Config)', '0', 'blocker: ' + str(b.get('summary') or 'not stated')]) + ' |'
          for b in blk if b['signal'] not in ss]
 review_txt = review_src.read_text(encoding='utf-8').rstrip() + '\n\n## Handoff\n\n' + '\n'.join([
     '- **Handed off to:** sdk-config-coding',
     '- **Handed off at:** ' + iso,
-    '- **Original SDK file name:** ' + sdk.name,
+    '- **Original SDK Config file name:** ' + sdk.name,
     '- **Readiness at handoff:** ' + readiness,
     '- **Mode at handoff:** test (fakeSignals: true, errorLog: true, eventLog: false, signalsLog: true set in the handed-off copy only)',
     '', '| Signal | Result | Attempts | Reason codes |', '|---|---|---:|---|'] + rows) + '\n'
 
 # 5. Write everything into a hidden staging folder first, then move it into place.
-sites = root/'SDK-config-coding'/'sites'
+sites = root/'sdk-config-coding'
 sites.mkdir(parents=True, exist_ok=True)
 if choice == 'new' and (sites/host).exists(): out('failed', reason='destination_appeared')
 if choice == 'replaced' and not (sites/host).exists(): choice = 'new'
@@ -4954,7 +5018,7 @@ stage = sites/('.incoming-' + host + '-' + now.strftime('%Y%m%d-%H%M%S'))
 (stage/'handoff'/(cust_slug + '-implementation-review.md')).write_text(review_txt, encoding='utf-8')
 files = [stage/'acoconnect-loader.js', stage/'handoff'/'original-sdk.js', stage/'handoff'/(cust_slug + '-customer-signal-config.json'), stage/'handoff'/(cust_slug + '-implementation-review.md')]
 if not all(f.is_file() and f.stat().st_size > 0 for f in files): out('failed', reason='verify_failed', staging=stage.name)
-# Read each SDK copy back and compare it with the string that was meant to be written, so a short or
+# Read each SDK Config copy back and compare it with the string that was meant to be written, so a short or
 # failed write is caught before the folder is moved into place. Then confirm the loader is in test mode.
 if any(f.read_text(encoding='utf-8') != js for f in files[:2]): out('failed', reason='verify_failed', staging=stage.name)
 if not re.search(r'\bfakeSignals\s*:\s*true', files[0].read_text(encoding='utf-8')): out('failed', reason='cannot_set_test_mode', file=sdk.name)
@@ -4980,8 +5044,8 @@ except OSError as e:
 profile = json.loads(profile_path.read_text())
 profile['handoff'] = {
     'openedInCodingAssistant': True, 'at': iso, 'choice': choice,
-    'folder': 'SDK-config-coding/sites/' + dest.name + '/',
-    'backupFolder': ('SDK-config-coding/sites/' + backup.name + '/') if backup else None,
+    'folder': 'sdk-config-coding/' + dest.name + '/',
+    'backupFolder': ('sdk-config-coding/' + backup.name + '/') if backup else None,
     'signalsHandedOver': handed,
     'result': None,
 }
@@ -4994,16 +5058,16 @@ Do **not** pass any of these files to `mcp__cowork__present_files`. The signal c
 
 **If the output has `"status": "ok"`** → run the E-4 analytics script with `handoffChoice` set to the `choice` value in the output (it can differ from the `CHOICE` passed in), then E-5.
 
-**If the output has `"status": "failed"`** (or the script errors) → run the E-4 analytics script with `handoffChoice = "failed"`. Output exactly one sentence: *"The handoff couldn't be completed (`<reason>`), so nothing was changed in your outputs or profile."* If the output names a `staging` folder, add: *"A partial copy was left in `SDK-config-coding/sites/<staging>/`; you can delete it."* If it names a `backup` folder, add: *"Your previous folder is safe as `SDK-config-coding/sites/<backup>/`."* Then re-render `feedback_saved`. Never delete or overwrite a folder to recover.
+**If the output has `"status": "failed"`** (or the script errors) → run the E-4 analytics script with `handoffChoice = "failed"`. Output exactly one sentence: *"The handoff couldn't be completed (`<reason>`), so nothing was changed in your site folder or profile."* If the output names a `staging` folder, add: *"A partial copy was left in `sdk-config-coding/<staging>/`; you can delete it."* If it names a `backup` folder, add: *"Your previous folder is safe as `sdk-config-coding/<backup>/`."* Then re-render `feedback_saved`. Never delete or overwrite a folder to recover.
 
 ##### E-4 — Record the choice in analytics
 
 Non-critical: if it fails, continue without comment.
 
 ```bash
-SLUG="<SLUG>" RUN_ID="<RUN_ID>" HANDOFF_CHOICE="<declined|cancelled|new|replaced|alongside|failed>" python3 -c "
+SLUG="<SLUG>" RUN_ID="<RUN_ID>" HANDOFF_CHOICE="<declined|cancelled|new|replaced|alongside|failed>" HANDOFF_SURFACE="<desktop|vscode_or_terminal|>" python3 -c "
 import json, os, glob, pathlib, datetime
-d = glob.glob('/sessions/*/mnt/SDK-config-assistant/profiles')
+d = glob.glob('/sessions/*/mnt/sdk-config-assistant/profiles')
 if d:
     p = pathlib.Path(d[0]) / (os.environ['SLUG'] + '.analytics.json')
     if p.exists():
@@ -5012,6 +5076,7 @@ if d:
         for r in a.get('runHistory', []):
             if r.get('runId') == os.environ['RUN_ID']:
                 r['handoffChoice'] = os.environ['HANDOFF_CHOICE']; r['handoffAt'] = now
+                r['handoffSurface'] = os.environ.get('HANDOFF_SURFACE') or None
         a['lastUpdatedAt'] = now
         p.write_text(json.dumps(a, indent=2, ensure_ascii=False) + '\n')
 print('OK')
@@ -5022,19 +5087,28 @@ Store no paths or folder names in the sidecar.
 
 ##### E-5 — Handoff complete and session close
 
-Show `mcp__visualize__show_widget` (title: `handoff_complete`, loading: `"Finishing handoff…"`). Category 1: if `show_widget` is unavailable, output the same content as plain text (≤5 lines). Substitute `FOLDER` with the folder written (the `folder` value from E-3) and `BACKUP_LINE` with `<div style="font-size:11px;color:var(--color-text-secondary);margin-top:8px">Your previous folder was kept as <code>SDK-config-coding/sites/BACKUP/</code>.</div>` when a backup was made, otherwise empty. Add `<div style="font-size:11px;color:#B25000;margin-top:8px">Note: FLAGS were not found in this SDK and were left unchanged.</div>` only when `flagsMissing` is non-empty.
+Show `mcp__visualize__show_widget` (title: `handoff_complete`, loading: `"Finishing handoff…"`). Category 1: if `show_widget` is unavailable, output the same content as plain text (≤6 lines). Substitute `NEXT_STEPS` and `OTHER_WAY` from the table below for `HANDOFF_SURFACE`, then `FOLDER` with the folder written (the `folder` value from E-3) and `BACKUP_LINE` with `<div style="font-size:11px;color:var(--color-text-secondary);margin-top:8px">Your previous folder was kept as <code>sdk-config-coding/BACKUP/</code>.</div>` when a backup was made, otherwise empty. Add `<div style="font-size:11px;color:#B25000;margin-top:8px">Note: FLAGS were not found in this SDK Config and were left unchanged.</div>` only when `flagsMissing` is non-empty.
 
 ```html
 <div style="font-family:var(--font-sans);padding:1.25rem;max-width:480px">
   <div style="font-size:14px;font-weight:600;color:var(--color-text-primary);margin-bottom:8px">Handed off to the coding assistant</div>
   <div style="font-size:12px;color:var(--color-text-secondary);line-height:1.6">
-    Copied to <code>SDK-config-coding/sites/FOLDER/</code> inside the folder added to this session, in test mode.<br><br>
-    To continue, open a terminal in that folder's <strong>SDK-config-coding</strong> directory, run <code>claude</code>, and say <strong>"let's work on FOLDER"</strong>. If this plugin isn't installed in Claude Code yet, install it there first.<br><br>
-    When you prepare the SDK for production there, the coding assistant can save a summary of what it fixed. This skill shows it the next time you load this profile.
+    Copied to <code>sdk-config-coding/FOLDER/</code> inside the folder added to this session, in test mode.<br><br>
+    NEXT_STEPS<br><br>
+    The first time on this computer, the coding assistant walks you through a one-time Chrome setup, which ends by starting a fresh session. If it doesn't respond to "let's work on", install the sdk-config-assistant plugin in Claude Code first.<br><br>
+    When you prepare the SDK Config for production there, the coding assistant can save a summary of what it fixed. This skill shows it the next time you load this profile.
   </div>
+  <div style="font-size:11px;color:var(--color-text-secondary);margin-top:8px">OTHER_WAY</div>
   BACKUP_LINE
 </div>
 ```
+
+| `HANDOFF_SURFACE` | `NEXT_STEPS` | `OTHER_WAY` |
+|---|---|---|
+| `desktop` | `To continue here in Claude Desktop, start a new session in the <strong>Code</strong> tab using the <strong>local</strong> environment, choose the folder added to this session (not <code>sdk-config-coding</code> inside it), and leave the worktree option off if it appears. Then say <strong>"let's work on FOLDER"</strong>.` | `Prefer VS Code or a terminal? Open the same folder there instead.` |
+| `vscode_or_terminal` | `To continue, open the folder added to this session (not <code>sdk-config-coding</code> inside it) in VS Code and open Claude Code, or in a terminal <code>cd</code> into it and run <code>claude</code>. Then say <strong>"let's work on FOLDER"</strong>.` | `You can also stay in Claude Desktop: start a local session on the same folder in the Code tab.` |
+
+Keep the click-path wording to what the table says: the Code tab, the local environment, the folder and the worktree option are the states the coding assistant needs (its session check stops in a cloud session or a temporary worktree). Don't add menu names or button labels beyond them.
 
 Describe the location only relative to the added folder. Never print a `/sessions/<id>/mnt/...` path, because it doesn't exist on the user's machine.
 
@@ -5123,6 +5197,7 @@ The sidecar file lives alongside the operational profile and is never used as an
       "feedbackId": "feedback-20260724-144305-b72c",
       "feedbackSkipped": false,
       "handoffChoice": "new",
+      "handoffSurface": "desktop",
       "handoffAt": "2026-07-24T14:44:10Z"
     }
   ],

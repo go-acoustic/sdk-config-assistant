@@ -1,14 +1,73 @@
 ---
 name: sdk-config-coding
-description: Claude Code (terminal/IDE) only. Hand-edit, debug and test the JavaScript enhance functions and triggers in an existing sites/<hostname>/acoconnect-loader.js, live through Tampermonkey and the sdk-chrome-devtools MCP; continue an SDK handed off from SDK-config-assistant (a handoff/ folder or escalated signals); or prepare that loader for production (fakeSignals, readiness). Also sets up, repairs or switches this skill's own browser tooling (dedicated or default Chrome profile, the sdk-chrome-devtools MCP, Tampermonkey) when asked or when its setup check needs it. Not for requests that start from a customer website or domain — generating, auditing, mapping or updating a signal configuration or initLogSignal(), onboarding a customer, mapping JSON, implementation or test plans — nor for installing Tampermonkey to test an SDK-config-assistant output. Those belong to SDK-config-assistant, even when initLogSignal or signal names are mentioned. Never in Claude Cowork.
+description: Claude Code only (Desktop Code tab, terminal or IDE), never Claude Cowork. Hand-edit, debug and test the JavaScript enhance functions and triggers in an existing sdk-config-coding/<hostname>/acoconnect-loader.js, live through Tampermonkey and the sdk-chrome-devtools MCP; continue an SDK Config handed off from SDK-config-assistant (a handoff/ folder or escalated signals); or prepare that SDK Config for production (fakeSignals, readiness). Also sets up, repairs or switches this skill's own browser tooling (dedicated or default Chrome profile, the sdk-chrome-devtools MCP, Tampermonkey) when asked or when its setup check needs it. Not for requests that start from a customer website or domain — generating, auditing, mapping or updating a signal configuration or initLogSignal(), onboarding a customer, mapping JSON, implementation or test plans — nor for installing Tampermonkey to test an SDK-config-assistant output. Those belong to SDK-config-assistant, even when initLogSignal or signal names are mentioned.
 argument-hint: "[setup]"
 ---
 
 # SDK Config Coding
 
-This skill implements behavioural signals for the Acoustic Connect SDK inside a customer's project. The loader is provided by the user and owned by them outside of `initLogSignal`. Your scope is limited to signal implementation inside `initLogSignal`.
+This skill implements behavioural signals in a customer's **SDK Config** (`acoconnect-loader.js`): the customer-specific code that loads the Acoustic Connect **SDK** and calls it. The SDK Config is provided by the user and owned by them outside of `initLogSignal`; the SDK itself is Acoustic's and is never changed here. Your scope is limited to signal implementation inside `initLogSignal`.
 
-**Claude Code only.** This skill needs a local terminal, a local project folder and the Chrome DevTools MCP. If you are running in Claude Cowork or the Claude app (for example, `mcp__Claude_in_Chrome__*` or `mcp__cowork__*` tools are present and there is no local shell), stop. Tell the user this skill runs in Claude Code, and that `SDK-config-assistant` is the Cowork skill for generating an SDK config from a site. Don't continue with this workflow there.
+## SDK vs SDK Config — never confuse them (hard rule)
+
+> ⛔ **HARD RULE — terminology.** Two different things are involved, and every message, widget, file, report and comment must name them correctly. Calling the SDK Config "the SDK" is a defect.
+>
+> - **SDK** — Acoustic's JavaScript library (`acoconnect.js` / `acoconnect.min.js`, `window.TLT`). It is the same for every customer and knows how to send data to Acoustic. It is owned by Acoustic, and versioned and deployed to the Acoustic CDN by Acoustic P&E. These skills never create, edit, version or deploy it.
+> - **SDK Config** — the customer-specific JavaScript glue code that runs in the browser, maps actions on the customer's website to the SDK's programmatic interface (`initLogSignal`, triggers, `enhance`) and calls the SDK to send them to Acoustic. It is created by Acoustic (typically Professional Services, sometimes implementation or a CSM) or by the customer, and it is owned by the customer, who can delegate its maintenance to Acoustic under a service contract. It is deployed to the customer's CDN, or uploaded to the Acoustic Media Library in their subscription and served by the Acoustic CDN on their behalf. This is what these skills generate, hand over, fix and prepare for production.
+>
+> Use "SDK Config" for the second, every time — never "the SDK", "SDK bundle", "SDK loader", "SDK files" or "handed-off SDK" for it. Use "SDK" only for Acoustic's library. Existing file names and JSON keys keep their names because other files depend on them (`acoConnectSdkConfig-<domain>.js`, `acoconnect-loader.js`, `handoff/original-sdk.js`, `originalSdkFileName`, `acoustic.sdkBundle`): they all hold or describe the SDK Config, and must be described that way.
+
+## Where this skill runs
+
+**Claude Code only.** This skill needs a local shell, a local project folder and the Chrome
+DevTools MCP on the user's machine. It runs in any local Claude Code session: the **Code**
+tab in Claude Desktop, the terminal, or the VS Code / JetBrains extension. All three need
+Claude Code on the user's Claude account; Cowork access alone is not enough. Run the two
+checks below once per session, before setup mode or Step 0.
+
+**1. Cowork check.** If `mcp__cowork__*` or `mcp__Claude_in_Chrome__*` tools are present, or
+there is no local shell, this is Claude Cowork. Stop: don't run the session check, setup or
+any site work. Output this message:
+
+> sdk-config-coding runs in Claude Code, not Cowork, because it needs a local shell, your
+> project folder and a Chrome DevTools connection on your machine. You can use it in the
+> **Code** tab of Claude Desktop, in VS Code, or in the terminal. All three need Claude Code
+> on your Claude account — Cowork access alone isn't enough. If you don't see a Code tab in
+> Claude Desktop, or can't start a local session there, your account doesn't include Claude
+> Code yet: ask your Claude admin for access. Until then this skill can't run.
+>
+> To generate an SDK Config from a customer site here in Cowork, use `SDK-config-assistant`.
+
+**2. Session check.** Claude Desktop's Code tab can also start cloud sessions and sessions in
+a temporary git worktree. Neither works here: a cloud session can't reach the user's Chrome,
+and in a worktree the Tampermonkey `@require` path (built from `pwd`) points at a temporary
+checkout that may not hold the handed-off files, which are not committed.
+
+```bash
+if [ "${CLAUDE_CODE_REMOTE:-}" = "true" ]; then echo SESSION_CLOUD
+else
+  case "$PWD" in
+    */.claude/worktrees/*) echo SESSION_WORKTREE ;;
+    *) G=$(git rev-parse --path-format=absolute --git-dir --git-common-dir 2>/dev/null)
+       if [ -n "$G" ] && [ "$(printf '%s\n' "$G" | sed -n 1p)" != "$(printf '%s\n' "$G" | sed -n 2p)" ]; then echo SESSION_LINKED_WORKTREE
+       else echo SESSION_LOCAL; fi ;;
+  esac
+fi
+```
+
+- `SESSION_LOCAL` → carry on.
+- `SESSION_CLOUD` → stop. Tell the user: "This session runs in a cloud environment, but
+  sdk-config-coding needs your own machine — Chrome, Tampermonkey and your local `sites/`
+  folder. Start a new Claude Code session using the **local** environment, on your project
+  folder, and ask again."
+- `SESSION_WORKTREE` → stop. Tell the user: "This session is in a temporary git worktree
+  (`.claude/worktrees/…`). The Tampermonkey script would load the loader from that temporary
+  copy, and handed-off files that aren't committed won't be in it. Start a new session on the
+  project folder itself with the worktree option off, and ask again."
+- `SESSION_LINKED_WORKTREE` → ask once: "This folder is a git worktree. If it's one you set
+  up and will keep, I'll carry on. If Claude created it for this session, start a new session
+  on the main project folder with the worktree option off." Carry on only if they say it's
+  theirs.
 
 ## Setup mode
 
@@ -18,7 +77,7 @@ If the arguments are `setup`, or the user asks to set up, repair or re-check thi
 browser tooling (Chrome profile, the `sdk-chrome-devtools` MCP, launch alias, Tampermonkey)
 or to switch between the dedicated and default Chrome profile, read
 `${CLAUDE_PLUGIN_ROOT}/skills/sdk-config-coding/references/setup.md` and follow it. No
-loader or `sites/` folder is needed for this. Don't start site work afterwards unless the
+loader or `sdk-config-coding/` folder is needed for this. Don't start site work afterwards unless the
 user asks.
 
 A request to install Tampermonkey to test an `SDK-config-assistant` output is not setup
@@ -27,8 +86,8 @@ mode — that belongs to `SDK-config-assistant`'s own test guide.
 ## Project structure (in the user's own project, not this plugin)
 
 ```
-<project root>/
-└── sites/
+<project root>/              (the folder that also holds sdk-config-assistant/ when sites come from a handoff)
+└── sdk-config-coding/
     └── <site-hostname>/
         ├── acoconnect-loader.js   (the deployable artefact, provided by the user)
         ├── notes.md               (site-specific notes, selectors, data layer events)
@@ -37,7 +96,6 @@ mode — that belongs to `SDK-config-assistant`'s own test guide.
         │   ├── <customer-slug>-customer-signal-config.json
         │   └── original-sdk.js    (copy of the loader exactly as handed off, in test mode — the comparison baseline)
         ├── coding-result.json     (only for handed-off sites — written by "Preparing for production", read by sdk-config-assistant)
-        ├── .acoustic-upload.json  (only after coding-result.json was uploaded to Acoustic — content IDs only)
         └── *.js                   (Playwright utility scripts, if any)
 ```
 
@@ -74,31 +132,56 @@ else echo SETUP_NEEDED; fi
   launcher and the copy in `~/.claude/sdk-config-coding/` was refreshed. It takes effect
   the next time the MCP starts; mention this only if the MCP is misbehaving.
 
+**Step 0b — folder layout.** Once per session, before the first site work, check whether
+this project is in the layout an earlier version used (`sdk-config-coding/<hostname>/`, or
+`SDK-config-coding/sdk-config-coding/<hostname>/` written by an older `sdk-config-assistant` handoff).
+This only reports; it moves nothing:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/skills/sdk-config-coding/scripts/migrate_layout.py" "$PWD" --dry-run --include-root-sites
+```
+
+- `nothing_to_do` → proceed.
+- `wrong_root` → Claude Code is open inside the old `SDK-config-coding` folder. Tell the user
+  in one or two sentences that sites now live in `sdk-config-coding/` directly under the
+  folder added to their Cowork session, so they should open Claude Code in the `openIn` folder
+  and ask for the site again. Stop.
+- `migrated` (a dry run: nothing has moved yet) → list each `moved` entry as `from → to` and
+  ask: "Move these to the new folder layout? Nothing is deleted or overwritten." On yes, run
+  the same command without `--dry-run` and report any `left` entries (each old folder that
+  still holds something gets a `MIGRATED.txt` saying why). A Tampermonkey script installed
+  for a moved site still `@require`s the old file path, so regenerate it from the template
+  (step 2 of "Session start") the next time that site is tested. On no, work in the old location
+  for this session — read `sdk-config-coding/<hostname>/` wherever this skill says
+  `sdk-config-coding/<hostname>/` — and mention that new handoffs from `sdk-config-assistant`
+  arrive in `sdk-config-coding/`.
+- `error` → say what failed in one sentence and proceed in whichever layout is on disk.
+
 When the user says "let's work on" or "let's continue" a site, or asks to start/continue implementation:
 
-1. Read `sites/<hostname>/acoconnect-loader.js` and `notes.md`. If `sites/<hostname>/handoff/` exists and there is no `notes.md` yet, this is the first open of a handed-off site — run "First open of a handed-off site" below before continuing.
+1. Read `sdk-config-coding/<hostname>/acoconnect-loader.js` and `notes.md`. If `sdk-config-coding/<hostname>/handoff/` exists and there is no `notes.md` yet, this is the first open of a handed-off site — run "First open of a handed-off site" below before continuing.
 2. **Show an implementation status summary** — list every signal in `cfg.signals` with a status:
    - ✅ implemented (has a non-empty `enhance` function and at least one trigger)
    - ⏭️ skipped (no trigger expected — e.g. `accountRegistered` with no known confirmation page)
    - ⬜ not yet started (empty `enhance` or no triggers)
 
-   Omit the `audience` utility signal (see "Signal names in handed-off SDKs"). For a handed-off site, list the handed-over signals first (those `notes.md` records as escalated or blocked at handoff, including signals from `blockers[]` that were never built), marked 🔺 handed over, with their reason codes or blocker summary — these are usually why the site was handed off. A handed-over signal whose `enhance` and triggers are now filled in is ✅ like any other.
-3. **Ask about SDK injection** — for an ongoing implementation, ask: "Does the Tampermonkey script need to be set up, or is it already installed?" For a new site, offer to walk through setup. Then follow the session start steps below.
-4. All edits target `sites/<hostname>/acoconnect-loader.js`, within `initLogSignal` only.
-5. If the project already has ESLint set up (an `eslint.config.mjs` exists at the project root — see "Linting" below), lint after every edit: `npx eslint sites/<hostname>/acoconnect-loader.js --fix`. If it doesn't, skip linting — don't mention it unless the user asks.
+   Omit the `audience` utility signal (see "Signal names in handed-off SDK Configs"). For a handed-off site, list the handed-over signals first (those `notes.md` records as escalated or blocked at handoff, including signals from `blockers[]` that were never built), marked 🔺 handed over, with their reason codes or blocker summary — these are usually why the site was handed off. A handed-over signal whose `enhance` and triggers are now filled in is ✅ like any other.
+3. **Ask about SDK Config injection** — for an ongoing implementation, ask: "Does the Tampermonkey script need to be set up, or is it already installed?" For a new site, offer to walk through setup. Then follow the session start steps below.
+4. All edits target `sdk-config-coding/<hostname>/acoconnect-loader.js`, within `initLogSignal` only.
+5. If the project already has ESLint set up (an `eslint.config.mjs` exists at the project root — see "Linting" below), lint after every edit: `npx eslint sdk-config-coding/<hostname>/acoconnect-loader.js --fix`. If it doesn't, skip linting — don't mention it unless the user asks.
 
 ## Sites handed off from sdk-config-assistant
 
-`sdk-config-assistant` (a Cowork skill in the `sdk-config-assistant` plugin) inspects a site and generates an SDK config, testing each signal up to three times (two correction attempts); signals still failing after that are **escalated**. An escalated signal is not removed from the SDK: it keeps the triggers and `enhance` from its last correction attempt, which did not pass validation. Treat that code as not working, not as a starting point that is known to be close. At the end of its session the user can choose **Use coding assistant**; the skill then copies the SDK to `sites/<hostname>/acoconnect-loader.js` (renamed from `acoConnectSdkConfig-<domain-slug>.js`) with its report, its signal config JSON and `original-sdk.js` (the loader exactly as handed off) under `handoff/`.
+`sdk-config-assistant` (a Cowork skill in the `sdk-config-assistant` plugin) inspects a site and generates an SDK Config, testing each signal up to three times (two correction attempts); signals still failing after that are **escalated**. An escalated signal is not removed from the SDK Config: it keeps the triggers and `enhance` from its last correction attempt, which did not pass validation. Treat that code as not working, not as a starting point that is known to be close. At the end of its session the user can choose **Use coding assistant**; the skill then copies the SDK Config to `sdk-config-coding/<hostname>/acoconnect-loader.js` (renamed from `acoConnectSdkConfig-<domain-slug>.js`) with its report, its signal config JSON and `original-sdk.js` (the SDK Config exactly as handed off; the file name is historical) under `handoff/`.
 
 **Mode at handoff.** `sdk-config-assistant` may already have switched its own copy to production. Before handing off, it sets these four flags in the handed-off loader only: `fakeSignals: true`, `errorLog: true`, `eventLog: false`, `signalsLog: true`. So a handed-off loader always arrives in test mode. If you find `fakeSignals: false` in a freshly handed-off loader, tell the user before loading it in the browser, because it would send real data to Connect.
 
 The handoff is **one-way for code**: once this skill has changed the loader, the code can't go back into `sdk-config-assistant`. The only thing that flows back is a short summary file, `coding-result.json`, written by "Preparing for production" below. So:
 
 - Treat `handoff/` as read-only reference. Never edit, regenerate, or delete its files (including `original-sdk.js`), and never offer to send code back to `sdk-config-assistant`.
-- Never read from or write to the `SDK-config-assistant/` folder, even though it may sit next to this project. `sdk-config-assistant` reads `coding-result.json` from this site's folder itself.
+- Never read from or write to the `sdk-config-assistant/` folder, even though it sits next to `sdk-config-coding/` in this project. `sdk-config-assistant` reads `coding-result.json` from this site's folder itself.
 - **Folder name vs hostname.** If a handoff was copied "alongside" an existing one, the folder is named `<hostname>-<YYYYMMDD>` (or `-<YYYYMMDD-HHMMSS>`). The site's hostname is still `customer.productionDomain` from the handoff JSON. Use the real hostname for Tampermonkey `@match` rules and for `hostname` in `coding-result.json`, and the folder name only for file paths.
-- If the user re-runs `sdk-config-assistant` and hands the same site off again, that skill asks before replacing this folder and keeps the old one as `sites/<hostname>.bak-<timestamp>/`. A replaced folder has no `notes.md`, so the first-open steps below run again on the new handoff. If the user wants earlier hand-written code back, read it from the backup folder — don't guess it.
+- If the user re-runs `sdk-config-assistant` and hands the same site off again, that skill asks before replacing this folder and keeps the old one as `sdk-config-coding/<hostname>.bak-<timestamp>/`. A replaced folder has no `notes.md`, so the first-open steps below run again on the new handoff. If the user wants earlier hand-written code back, read it from the backup folder — don't guess it.
 
 ### First open of a handed-off site
 
@@ -106,25 +189,25 @@ Run once, when `handoff/` exists and `notes.md` does not.
 
 1. Read `handoff/*-implementation-review.md` and `handoff/*-customer-signal-config.json`. The JSON is the more useful of the two. Fields to use, all optional — skip any that are absent:
    - `handoffMeta` — `profileSlug`, `handedOffAt`, `originalSdkFileName`, `modeAtHandoff`, `signalsHandedOver`, `blockersAtHandoff` (written by newer versions of sdk-config-assistant; older handoffs don't have it, and only the newest have the last two)
-   - `blockers[]` — per entry `signal`, `severity`, `summary`, `resolution`. These are signals the config skill could not build at all (for example, sign-in on a separate host, or an order page it could not inspect). They have no `acoustic.signalStatus` entry and no working code in the SDK.
+   - `blockers[]` — per entry `signal`, `severity`, `summary`, `resolution`. These are signals the config skill could not build at all (for example, sign-in on a separate host, or an order page it could not inspect). They have no `acoustic.signalStatus` entry and no working code in the SDK Config.
    - `customer` — `name`, `productionDomain`, `stagingDomain`, `platform`, `dataLayerName`
    - `acoustic.signalStatus.<signal>` — `validationResult` (`passed` / `issue_found` / `not_tested` / `blocked` / `escalated` / `pending`), `attempts`, `reasonCodes`, and `correctionHistory[]` (each entry's `note`, `correctionResult`, `retestResult`)
    - `inspection` — `dataLayerAvailable`, `dataLayerEvents`, `ecommerceSchema`, `ecommerceEventMap`, `findings[]`
    - `pageCategoryRules[]`, `mappings[]` (per-field `source`, `confidence`, `status`), `questions[]`, `assumptions[]`, `evidence[]`
 2. **Handed-over signals** are `handoffMeta.signalsHandedOver` when present. Otherwise, work them out: every signal in `acoustic.signalStatus` that is `escalated` or `blocked`, plus every `blockers[]` signal that is not `passed` there. A blocked signal usually needs something from the customer (access to another host, a test order, credentials) before code can help, so record its `resolution` as the first open question for it.
 3. **If `acoustic.signalStatus` is missing, or every signal in it is `pending`**, the JSON was probably written at generation time, before validation ran. Take per-signal outcomes from the review's escalation or status sections instead. If neither source says which signals were escalated, tell the user and ask — don't infer escalation from an empty `enhance` alone (a signal can be empty because the site has no matching functionality).
-4. Write `sites/<hostname>/notes.md`:
+4. Write `sdk-config-coding/<hostname>/notes.md`:
    ```markdown
    # <hostname>
 
    Handed off from sdk-config-assistant on <handoff date, if stated>. Customer: <customer.name>.
-   Original SDK file name: <from handoffMeta or the review, if stated> — use this name when the SDK is deployed.
+   Original SDK Config file name: <from handoffMeta or the review, if stated> — use this name when the SDK Config is deployed.
    Profile slug: <handoffMeta.profileSlug, if stated> — used in coding-result.json.
 
    ## Signal status at handoff
    | Signal | Result | Attempts | Reason codes |
 
-   ## Blocked before the SDK was built
+   ## Blocked before the SDK Config was built
    <per blockers[] entry whose signal is not passed: signal, summary and resolution, verbatim>
 
    ## Escalated / blocked signal history
@@ -139,9 +222,9 @@ Run once, when `handoff/` exists and `notes.md` does not.
    Record only what the handoff files state. Mark anything missing as "not stated" rather than filling it in.
 5. Continue with "Working on a site" from step 2. When starting a handed-over signal, check its escalation history and the field `mappings` first. Don't repeat an approach that `correctionHistory` shows already failed unless there's a new reason to expect it to work.
 
-### Signal names in handed-off SDKs
+### Signal names in handed-off SDK Configs
 
-`sdk-config-assistant` names signals by its profile keys; the SDK itself uses the `cfg.signals` keys. They match except:
+`sdk-config-assistant` names signals by its profile keys; the SDK Config itself uses the `cfg.signals` keys. They match except:
 
 | Profile / report key | `cfg.signals` key |
 |---|---|
@@ -153,10 +236,10 @@ The generator also injects an **`audience` utility signal** into `cfg.signals` w
 
 ## Starting a new site
 
-1. Check whether `sites/<hostname>/` already exists.
+1. Check whether `sdk-config-coding/<hostname>/` already exists.
    - **If it does** — read `acoconnect-loader.js` and `notes.md` and proceed directly to signal implementation. If it has a `handoff/` folder but no `notes.md`, run "First open of a handed-off site" first.
-   - **If it does not** — create the directory and a stub `notes.md`, then ask the user to copy their configured `acoconnect-loader.js` into it before continuing. The user is responsible for providing the loader with the correct `appKey`, endpoint URL, and any SDK configuration — do not ask for or look up these values.
-2. Once the loader is present, read it to confirm `initLogSignal` exists and to identify the SDK version (for the Tampermonkey script).
+   - **If it does not** — create the directory and a stub `notes.md`, then ask the user to copy their configured `acoconnect-loader.js` into it before continuing. The user is responsible for providing the loader with the correct `appKey`, endpoint URL, and any other SDK Config settings — do not ask for or look up these values.
+2. Once the loader is present, read it to confirm `initLogSignal` exists and to identify the SDK version the SDK Config loads (for the Tampermonkey script).
 3. Begin implementing signals per the workflow below.
 
 ## Browser tooling
@@ -235,7 +318,7 @@ When setting up injection (either for a new site, or when the user confirms it n
 
 3. **Navigate to the site** and verify via `list_console_messages` that the SDK initialises (Type 2 LOAD message present, no errors). Confirm to the user that injection is working before proceeding.
 
-**Blocking an existing SDK deployment:** Some sites already have the Acoustic Connect SDK deployed. The loader's `initSDK()` has a `window.TLT` guard that skips the CDN fetch if the SDK is already present — so injection will still work. To test against a fully clean instance: block the site's SDK URL in Chrome DevTools (Network panel → right-click request → Block request URL) and reload.
+**Blocking an existing deployment:** Some sites already have their own SDK Config and the Acoustic Connect SDK deployed. The injected SDK Config's `initSDK()` has a `window.TLT` guard that skips the CDN fetch if the SDK is already present — so injection will still work. To test against a fully clean instance: block the site's own SDK Config and SDK URLs in Chrome DevTools (Network panel → right-click request → Block request URL) and reload.
 
 ### Chrome MCP (for inspection and signal verification)
 
@@ -243,7 +326,7 @@ The Chrome MCP (`sdk-chrome-devtools`, registered by setup) controls the Chrome 
 
 Key capabilities:
 - **Navigate** — `navigate_page` to load a URL in the open browser tab
-- **Read console output** — `list_console_messages` captures all log/warn/error output including SDK signal payloads and web events. This is the primary output channel during signal implementation.
+- **Read console output** — `list_console_messages` captures all log/warn/error output including the signal payloads the SDK Config logs and the SDK's web events. This is the primary output channel during signal implementation.
 - **Inspect the DOM** — `evaluate_script` to query selectors, read element properties, and examine data sources. CDP runs through the DevTools Protocol and is exempt from page CSP restrictions, so arbitrary JavaScript can be executed on any site.
 - **Take snapshots** — `take_snapshot` for the accessibility tree, `take_screenshot` for a visual view
 
@@ -268,13 +351,13 @@ The pinned `eslint`/`eslint-config-airbnb-base` versions have a known peer-depen
 Once set up, ESLint uses airbnb-base style with project-specific overrides (4-space indent, double quotes, no max-len). `TLT`, `dataLayer`, and other SDK globals are pre-declared. Use `let`/`const` in `enhance` functions — not `var`. From then on, lint after every edit per "Working on a site" step 5 above:
 
 ```bash
-npx eslint sites/<hostname>/acoconnect-loader.js --fix
-npx eslint sites/<hostname>/acoconnect-loader.js  # re-run to review any remaining issues
+npx eslint sdk-config-coding/<hostname>/acoconnect-loader.js --fix
+npx eslint sdk-config-coding/<hostname>/acoconnect-loader.js  # re-run to review any remaining issues
 ```
 
 ## Architecture
 
-The user's project produces a single JavaScript file (`acoconnect-loader.js`) per customer site, deployed as a tag on the site. It loads and configures the Acoustic Connect SDK and implements behavioural signals.
+The user's project produces a single JavaScript file (`acoconnect-loader.js`) per customer site, deployed as a tag on the site. This file is the **SDK Config**: it loads and configures the Acoustic Connect SDK and implements behavioural signals.
 
 The loader is provided by the user and owned by them outside of `initLogSignal`. Your scope is limited to signal implementation inside `initLogSignal`. The only structural requirement is that `initLogSignal` is present — read the file before starting to confirm this and to understand any site-specific structure.
 
@@ -303,7 +386,7 @@ The `help` object passed to `enhance` provides:
 
 ### Data layer listener
 
-When `cfg.messageTypes` includes `"dlListener"`, the code monkey-patches `window[cfg.GAdataLayerName].push` to forward matching GA events into the SDK message stream. Requires `modules.dataLayer.enabled = false` in the SDK config.
+When `cfg.messageTypes` includes `"dlListener"`, the code monkey-patches `window[cfg.GAdataLayerName].push` to forward matching GA events into the SDK message stream. Requires `modules.dataLayer.enabled = false` in the SDK Config.
 
 ### Constraints
 
@@ -419,7 +502,7 @@ For each signal:
 
 ## Preparing for production
 
-Run this when the user asks to finish, go live, or prepare the SDK for deployment. It applies to every site, but handed-off SDKs always arrive in test mode (`fakeSignals: true`), so it is always needed for them.
+Run this when the user asks to finish, go live, or prepare the SDK Config for deployment. It applies to every site, but handed-off SDK Configs always arrive in test mode (`fakeSignals: true`), so it is always needed for them.
 
 1. **Status check.** Show the implementation status summary. List every signal that is ⬜ not started, 🔺 handed over and still unresolved, or that the user hasn't confirmed by walking through the journey themselves. Each one either gets finished or is explicitly accepted by the user as out of scope. Record accepted exclusions in `notes.md`.
 2. **Logging flags.** These live in the `cfg` object, so show the change and ask before making it:
@@ -433,7 +516,7 @@ Run this when the user asks to finish, go live, or prepare the SDK for deploymen
 
    Only change flags that exist in this loader. If one is missing, say so — don't add it. `fakeSignals: false` means signals are sent to Connect as real data, so confirm the user wants that and is not testing against a production account by accident.
 3. **Re-verify after the flag change.** Reload a page, confirm via `list_console_messages` that the SDK still initialises with no errors, and check one signal end to end.
-4. **Deployment file name.** If `notes.md` records an original SDK file name from a handoff, remind the user that the deployed file should normally use that name, not `acoconnect-loader.js`.
+4. **Deployment file name.** If `notes.md` records an original SDK Config file name from a handoff, remind the user that the deployed file should normally use that name, not `acoconnect-loader.js`.
 5. **Readiness label.** Give exactly one of these, and record it with the date in `notes.md`. Use the same labels as `sdk-config-assistant` so the two skills' reports read consistently:
    - `Not ready` — a required signal or field is unresolved, or the SDK fails to initialise.
    - `Ready for staging` — code complete, but some signals have not been verified in the browser in this project.
@@ -441,9 +524,9 @@ Run this when the user asks to finish, go live, or prepare the SDK for deploymen
    - `Production ready` — all in-scope signals implemented and verified, no exclusions or open follow-ups, production flags set and re-verified.
 
    Never give a label the evidence doesn't support. For example, don't give `Production ready` when `order` was only checked by inspecting selectors, not by a real or test order.
-6. **Record the result for sdk-config-assistant (handed-off sites only).** Skip this step when `sites/<hostname>/handoff/` doesn't exist. Otherwise ask: "Save a summary of what was fixed and send it to Acoustic, so sdk-config-assistant can learn from it? It records signal names, change types, trigger attributes and short reasons, never code, customer data or keys." Only on **yes**, write `sites/<hostname>/coding-result.json` as described in "The coding-result.json file" below, then run step 7. On **no**, write nothing, upload nothing, and don't ask again in this session. Running this step again later overwrites the file with the latest result.
-7. **Upload the result to Acoustic (handed-off sites only, after a yes in step 6).** Upload `coding-result.json` to the Acoustic operator content org, the same org and the same method `sdk-config-assistant` uses for its session backup. See "Uploading coding-result.json" below. This step is non-blocking: if it fails for any reason, say so in one line and carry on. The local file is kept either way.
-8. **Sharing more with Acoustic (optional).** After step 7, tell the user in one line that Acoustic can learn more if they also share, as a folder or zip, `sites/<hostname>/` (the SDK files show exactly what changed; leave out `notes.md` if it holds anything they'd rather not share). Never send anything beyond step 7 yourself.
+6. **Record the result for sdk-config-assistant (handed-off sites only).** Skip this step when `sdk-config-coding/<hostname>/handoff/` doesn't exist. Otherwise ask: "Save a summary of what was fixed, so you can share it with Acoustic and sdk-config-assistant can learn from it? It records signal names, change types, trigger attributes and short reasons, never code, customer data or keys." Only on **yes**, write `sdk-config-coding/<hostname>/coding-result.json` as described in "The coding-result.json file" below, then run step 7. On **no**, write nothing and don't ask again in this session. Running this step again later overwrites the file with the latest result.
+7. **Share the result with Acoustic (handed-off sites only, after a yes in step 6).** Tell the user in one line that the summary is saved as `sdk-config-coding/<hostname>/coding-result.json`, and that they can send it to their Acoustic contact or attach it to a support case. Never send it yourself.
+8. **Sharing more with Acoustic (optional).** After step 7, tell the user in one line that Acoustic can learn more if they also share, as a folder or zip, `sdk-config-coding/<hostname>/` (the SDK Config files show exactly what changed; leave out `notes.md` if it holds anything they'd rather not share). Never send anything yourself.
 
 ### The coding-result.json file
 
@@ -493,59 +576,5 @@ How to fill it:
    - `summary` and `reason` are one sentence each, 200 characters at most.
    - `reason` says why the original approach failed and why the new one works. That's the part sdk-config-assistant learns from. If the reason isn't known, write `"not stated"`.
    - Never include code, selectors longer than one short CSS selector, customer data, emails, credentials, app keys or collector URLs. Trigger attribute values longer than 100 characters are cut to 100.
-6. **Write safely.** Write valid JSON indented by 2 spaces, then read it back and parse it to confirm. Write it only to `sites/<hostname>/coding-result.json`, never inside `handoff/` and never in the `SDK-config-assistant/` folder.
+6. **Write safely.** Write valid JSON indented by 2 spaces, then read it back and parse it to confirm. Write it only to `sdk-config-coding/<hostname>/coding-result.json`, never inside `handoff/` and never in the `SDK-config-assistant/` folder.
 
-### Uploading coding-result.json
-
-Runs from "Preparing for production" step 7, only after the user said yes in step 6. It uses the same fixed operator org and the same content API as `sdk-config-assistant`'s session backup, so the result lands next to that skill's `<slug>.analytics.json` files, where `sdk-config-analysis` reads them. The user only needs to be signed in to app.goacoustic.com in the Chrome profile this skill uses (the one set by `chromeMode`). Nothing else about the user's own Connect account is read or changed.
-
-**Operator org constant.** Hardcoded; never derive it from the site, the handoff files or the user's account:
-
-```
-OPERATOR_ORG_SUB_ID = "7068330f6b52ccdbed0ee8b121764e21a5aef534"
-```
-
-**Asset name.** `<profileSlug>.coding-result.json`, using `profileSlug` from the file (the handoff's `handoffMeta.profileSlug`). If there is no profile slug, use `<hostname>.coding-result.json`.
-
-**Upload record.** `sites/<folder>/.acoustic-upload.json` stores `{ "orgSubId", "assetName", "assetUuid", "assetRev", "resourceId", "uploadedAt" }` so a later upload replaces the same asset. It holds only content IDs, never keys, cookies or tokens.
-
-1. **Open the operator org.** `navigate_page` to `https://app.goacoustic.com/content/my-content?subId=7068330f6b52ccdbed0ee8b121764e21a5aef534`, wait 2 s, then `navigate_page` to `https://app.goacoustic.com/content/items/assets` and wait 2 s. Both navigations are needed: the second one commits the org switch.
-2. **Check the session and the org** with `evaluate_script`:
-   ```js
-   async () => {
-     const reg = await fetch('/content/api/registry/v1/currenttenant', { credentials: 'include', headers: { Accept: 'application/json' } });
-     const d = reg.ok ? await reg.json() : {};
-     const probe = await fetch('/content/api/authoring/v1/assets?rows=1', { credentials: 'include', headers: { Accept: 'application/json' } });
-     return { org: d.name || '', probe: probe.status };
-   }
-   ```
-   - `probe` is not `200`, or the page is a sign-in page → say "Upload to Acoustic skipped — not signed in to app.goacoustic.com in this Chrome profile. The summary is saved in coding-result.json." and stop. Offer to try again after the user signs in.
-   - `org` does not contain `SDK Config` → say "Upload to Acoustic skipped — wrong org (got: <org>)." and stop. Never upload to any other org.
-3. **Upload.** Read `sites/<folder>/coding-result.json` and `.acoustic-upload.json` (if present) from disk. Parse the result file to confirm it is valid JSON, and check it contains no `appKey`, `collectorUrl` or `postUrl` key. Then run `evaluate_script`, with `CONTENT` replaced by the file's text as a JSON string literal (for example the output of `JSON.stringify(fileText)`), and `ASSET_UUID` / `ASSET_REV` from the upload record, or empty strings on the first upload:
-   ```js
-   async () => {
-     const name = 'ASSET_NAME';
-     const content = CONTENT;
-     const assetUuid = 'ASSET_UUID', assetRev = 'ASSET_REV';
-     const r1 = await fetch('/content/api/authoring/v1/resources?name=' + encodeURIComponent(name), {
-       method: 'POST', credentials: 'include',
-       headers: { 'Content-Type': 'application/json;charset=UTF-8', Accept: 'application/json' }, body: content });
-     if (!r1.ok) return { error: 'RESOURCE_FAILED ' + r1.status };
-     const resourceId = (await r1.json()).id;
-     const r2 = assetUuid
-       ? await fetch('/content/api/authoring/v1/assets/' + assetUuid, { method: 'PUT', credentials: 'include',
-           headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-           body: JSON.stringify({ id: assetUuid, rev: assetRev, resource: resourceId }) })
-       : await fetch('/content/api/authoring/v1/assets', { method: 'POST', credentials: 'include',
-           headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-           body: JSON.stringify({ name, resource: resourceId }) });
-     if (!r2.ok) return { error: (assetUuid ? 'PUT_FAILED ' : 'ASSET_FAILED ') + r2.status };
-     const d2 = await r2.json();
-     return { assetUuid: d2.id, assetRev: d2.rev, resourceId, mode: assetUuid ? 'update' : 'create' };
-   }
-   ```
-   If a `PUT` fails with `409` or `404` (the asset changed or was removed), clear the upload record and run the upload once more as a first upload.
-4. **Record it.** On success, write `.acoustic-upload.json` with the returned IDs and `uploadedAt`, and add a line to `notes.md`: "Result uploaded to Acoustic on <date>." Tell the user in one line that the summary was sent. On failure, say "Upload to Acoustic failed (<error>). The summary is saved in coding-result.json." and don't retry unless the user asks.
-5. **Put the browser back.** `navigate_page` back to the site page the user was working on, so testing can continue.
-
-Never upload `acoconnect-loader.js`, `original-sdk.js`, `notes.md` or anything in `handoff/`. Only `coding-result.json` is sent.

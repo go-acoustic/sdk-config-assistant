@@ -602,7 +602,7 @@ configEvents.map(e => ({
 ]
 ```
 
-> When `target.attributes.data-colour` is set, the value in the onEvent attribute should be a literal string that was captured (e.g. `"Red"`) or a wildcard match pattern if the SDK supports it. If the SDK requires exact match, document each colour as a separate trigger — or use `target.attributes.class` with a swatch-specific class as a broader catch-all.
+> When `target.attributes.data-colour` is set, the value in the onEvent attribute should be a literal string that was captured (e.g. `"Red"`) or a regular expression, which `initLogSignal` in the SDK Config accepts as an attribute value. If you want an exact match instead, document each colour as a separate trigger — or use `target.attributes.class` with a swatch-specific class as a broader catch-all.
 
 ---
 
