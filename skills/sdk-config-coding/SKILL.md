@@ -96,7 +96,6 @@ mode — that belongs to `SDK-config-assistant`'s own test guide.
         │   ├── <customer-slug>-customer-signal-config.json
         │   └── original-sdk.js    (copy of the loader exactly as handed off, in test mode — the comparison baseline)
         ├── coding-result.json     (only for handed-off sites — written by "Preparing for production", read by sdk-config-assistant)
-        ├── .acoustic-upload.json  (only after coding-result.json was uploaded to Acoustic — content IDs only)
         └── *.js                   (Playwright utility scripts, if any)
 ```
 
@@ -525,9 +524,9 @@ Run this when the user asks to finish, go live, or prepare the SDK Config for de
    - `Production ready` — all in-scope signals implemented and verified, no exclusions or open follow-ups, production flags set and re-verified.
 
    Never give a label the evidence doesn't support. For example, don't give `Production ready` when `order` was only checked by inspecting selectors, not by a real or test order.
-6. **Record the result for sdk-config-assistant (handed-off sites only).** Skip this step when `sdk-config-coding/<hostname>/handoff/` doesn't exist. Otherwise ask: "Save a summary of what was fixed and send it to Acoustic, so sdk-config-assistant can learn from it? It records signal names, change types, trigger attributes and short reasons, never code, customer data or keys." Only on **yes**, write `sdk-config-coding/<hostname>/coding-result.json` as described in "The coding-result.json file" below, then run step 7. On **no**, write nothing, upload nothing, and don't ask again in this session. Running this step again later overwrites the file with the latest result.
-7. **Upload the result to Acoustic (handed-off sites only, after a yes in step 6).** Upload `coding-result.json` to the Acoustic operator content org, the same org and the same method `sdk-config-assistant` uses for its session backup. See "Uploading coding-result.json" below. This step is non-blocking: if it fails for any reason, say so in one line and carry on. The local file is kept either way.
-8. **Sharing more with Acoustic (optional).** After step 7, tell the user in one line that Acoustic can learn more if they also share, as a folder or zip, `sdk-config-coding/<hostname>/` (the SDK Config files show exactly what changed; leave out `notes.md` if it holds anything they'd rather not share). Never send anything beyond step 7 yourself.
+6. **Record the result for sdk-config-assistant (handed-off sites only).** Skip this step when `sdk-config-coding/<hostname>/handoff/` doesn't exist. Otherwise ask: "Save a summary of what was fixed, so you can share it with Acoustic and sdk-config-assistant can learn from it? It records signal names, change types, trigger attributes and short reasons, never code, customer data or keys." Only on **yes**, write `sdk-config-coding/<hostname>/coding-result.json` as described in "The coding-result.json file" below, then run step 7. On **no**, write nothing and don't ask again in this session. Running this step again later overwrites the file with the latest result.
+7. **Share the result with Acoustic (handed-off sites only, after a yes in step 6).** Tell the user in one line that the summary is saved as `sdk-config-coding/<hostname>/coding-result.json`, and that they can send it to their Acoustic contact or attach it to a support case. Never send it yourself.
+8. **Sharing more with Acoustic (optional).** After step 7, tell the user in one line that Acoustic can learn more if they also share, as a folder or zip, `sdk-config-coding/<hostname>/` (the SDK Config files show exactly what changed; leave out `notes.md` if it holds anything they'd rather not share). Never send anything yourself.
 
 ### The coding-result.json file
 
@@ -579,57 +578,3 @@ How to fill it:
    - Never include code, selectors longer than one short CSS selector, customer data, emails, credentials, app keys or collector URLs. Trigger attribute values longer than 100 characters are cut to 100.
 6. **Write safely.** Write valid JSON indented by 2 spaces, then read it back and parse it to confirm. Write it only to `sdk-config-coding/<hostname>/coding-result.json`, never inside `handoff/` and never in the `SDK-config-assistant/` folder.
 
-### Uploading coding-result.json
-
-Runs from "Preparing for production" step 7, only after the user said yes in step 6. It uses the same fixed operator org and the same content API as `sdk-config-assistant`'s session backup, so the result lands next to that skill's `<slug>.analytics.json` files, where `sdk-config-analysis` reads them. The user only needs to be signed in to app.goacoustic.com in the Chrome profile this skill uses (the one set by `chromeMode`). Nothing else about the user's own Connect account is read or changed.
-
-**Operator org constant.** Hardcoded; never derive it from the site, the handoff files or the user's account:
-
-```
-OPERATOR_ORG_SUB_ID = "7068330f6b52ccdbed0ee8b121764e21a5aef534"
-```
-
-**Asset name.** `<profileSlug>.coding-result.json`, using `profileSlug` from the file (the handoff's `handoffMeta.profileSlug`). If there is no profile slug, use `<hostname>.coding-result.json`.
-
-**Upload record.** `sdk-config-coding/<folder>/.acoustic-upload.json` stores `{ "orgSubId", "assetName", "assetUuid", "assetRev", "resourceId", "uploadedAt" }` so a later upload replaces the same asset. It holds only content IDs, never keys, cookies or tokens.
-
-1. **Open the operator org.** `navigate_page` to `https://app.goacoustic.com/content/my-content?subId=7068330f6b52ccdbed0ee8b121764e21a5aef534`, wait 2 s, then `navigate_page` to `https://app.goacoustic.com/content/items/assets` and wait 2 s. Both navigations are needed: the second one commits the org switch.
-2. **Check the session and the org** with `evaluate_script`:
-   ```js
-   async () => {
-     const reg = await fetch('/content/api/registry/v1/currenttenant', { credentials: 'include', headers: { Accept: 'application/json' } });
-     const d = reg.ok ? await reg.json() : {};
-     const probe = await fetch('/content/api/authoring/v1/assets?rows=1', { credentials: 'include', headers: { Accept: 'application/json' } });
-     return { org: d.name || '', probe: probe.status };
-   }
-   ```
-   - `probe` is not `200`, or the page is a sign-in page → say "Upload to Acoustic skipped — not signed in to app.goacoustic.com in this Chrome profile. The summary is saved in coding-result.json." and stop. Offer to try again after the user signs in.
-   - `org` does not contain `SDK Config` → say "Upload to Acoustic skipped — wrong org (got: <org>)." and stop. Never upload to any other org.
-3. **Upload.** Read `sdk-config-coding/<folder>/coding-result.json` and `.acoustic-upload.json` (if present) from disk. Parse the result file to confirm it is valid JSON, and check it contains no `appKey`, `collectorUrl` or `postUrl` key. Then run `evaluate_script`, with `CONTENT` replaced by the file's text as a JSON string literal (for example the output of `JSON.stringify(fileText)`), and `ASSET_UUID` / `ASSET_REV` from the upload record, or empty strings on the first upload:
-   ```js
-   async () => {
-     const name = 'ASSET_NAME';
-     const content = CONTENT;
-     const assetUuid = 'ASSET_UUID', assetRev = 'ASSET_REV';
-     const r1 = await fetch('/content/api/authoring/v1/resources?name=' + encodeURIComponent(name), {
-       method: 'POST', credentials: 'include',
-       headers: { 'Content-Type': 'application/json;charset=UTF-8', Accept: 'application/json' }, body: content });
-     if (!r1.ok) return { error: 'RESOURCE_FAILED ' + r1.status };
-     const resourceId = (await r1.json()).id;
-     const r2 = assetUuid
-       ? await fetch('/content/api/authoring/v1/assets/' + assetUuid, { method: 'PUT', credentials: 'include',
-           headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-           body: JSON.stringify({ id: assetUuid, rev: assetRev, resource: resourceId }) })
-       : await fetch('/content/api/authoring/v1/assets', { method: 'POST', credentials: 'include',
-           headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-           body: JSON.stringify({ name, resource: resourceId }) });
-     if (!r2.ok) return { error: (assetUuid ? 'PUT_FAILED ' : 'ASSET_FAILED ') + r2.status };
-     const d2 = await r2.json();
-     return { assetUuid: d2.id, assetRev: d2.rev, resourceId, mode: assetUuid ? 'update' : 'create' };
-   }
-   ```
-   If a `PUT` fails with `409` or `404` (the asset changed or was removed), clear the upload record and run the upload once more as a first upload.
-4. **Record it.** On success, write `.acoustic-upload.json` with the returned IDs and `uploadedAt`, and add a line to `notes.md`: "Result uploaded to Acoustic on <date>." Tell the user in one line that the summary was sent. On failure, say "Upload to Acoustic failed (<error>). The summary is saved in coding-result.json." and don't retry unless the user asks.
-5. **Put the browser back.** `navigate_page` back to the site page the user was working on, so testing can continue.
-
-Never upload `acoconnect-loader.js`, `original-sdk.js`, `notes.md` or anything in `handoff/`. Only `coding-result.json` is sent.
