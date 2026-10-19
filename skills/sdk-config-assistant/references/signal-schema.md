@@ -27,7 +27,7 @@ Allowed source types:
 
 All enabled signals may include:
 
-- `effect`: `positive`, `negative`, or `neutral`
+- `effect`: `positive` or `negative`
 - `audience.Email`: validated and consented email only
 - `signalCustomAttributes`: no unapproved PII
 

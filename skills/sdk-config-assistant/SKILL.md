@@ -29,7 +29,7 @@ The defined path is:
 ```
 Step 0 (new vs existing)
   → Chrome pre-flight
-  → Step 1 (scope intake)
+  → Step 1 (scope intake)          ← Step 1a-R writes the start record right after 1a
   → Steps 2–8 (inspect + profile)
   → Step 8b gate (inspect complete — mandatory stop)
   → Step 9 (validate + generate)
@@ -54,7 +54,7 @@ Step 0 (new vs existing)
 - **Never add extra fields to a defined widget** — every intake widget has a verbatim HTML template in this skill. Render it exactly as written. Fields like `appKey`, `collectorUrl`, `environment`, `platform`, `iframes`, and `notes` each belong to a specific step. Adding them to a different step's widget (e.g. putting `appKey` in the Step 1a form) is a skill defect. If in doubt, read the step definition before rendering.
 - **`appKey` and `collectorUrl` are never collected in the Step 1a form.** They are handled in Step 1c, which first asks the user whether to retrieve them automatically from Acoustic Connect or supply them manually. Skipping Step 1c or bypassing the auto-retrieve option is a skill defect.
 - Do not resume mid-flow from a prior session without first running Step 0 and the Chrome pre-flight check.
-- **All user-facing blockers must use `mcp__visualize__show_widget`.** If the skill hits a blocker at any point (unauthenticated session, missing prerequisite, unexpected page state, tool unavailable), it must render a defined blocker widget — never output a prose message. If no widget template exists for the blocker, stop and surface the issue in chat with a single sentence only, then wait for instructions. **That single-sentence rule applies only when no template and no fallback exist for the blocker** — it is not a shortcut around a blocker that has either. `workspace_required` has both a widget and a verbatim fallback, so a one-line summary of it ("Waiting for a folder to be added", "I'll wait for you to add a folder, then click continue") is a skill defect, not an application of this rule. Inventing a prose description of a blocker when a widget template is defined for it is a skill defect. **Exception — visualize unavailable:** If `show_widget` itself is unavailable, apply the Widget fallback protocol defined in Tool discipline below.
+- **All user-facing blockers must use `mcp__visualize__show_widget`.** If the skill hits a blocker at any point (unauthenticated session, missing prerequisite, unexpected page state, tool unavailable), it must render a defined blocker widget — never output a prose message. If no widget template exists for the blocker, stop and surface the issue in chat with a single sentence only, then wait for instructions. **That single-sentence rule applies only when no template and no fallback exist for the blocker** — it is not a shortcut around a blocker that has either. `workspace_required` has both a widget and a verbatim fallback, so a one-line summary of it ("Waiting for a folder to be added", "I'll wait for you to add a folder, then click continue") is a skill defect, not an application of this rule. Inventing a prose description of a blocker when a widget template is defined for it is a skill defect. **Exception — visualize unavailable:** If `show_widget` itself is unavailable, apply the Widget fallback protocol defined in Tool discipline below. **Exception — plain-text session-close notices:** this rule governs *blockers* only. Informational text shown at successful session close (e.g. the "Session closed. Run the skill again whenever you're ready for the next customer." lines in Step 14b, and the external-mode close notice in Step 14b-D) is not a blocker and is intentionally plain text, not a widget.
 
 **Commentary discipline**
 - Between any two consecutive tool calls, produce zero prose output. No transitional sentences ("Now I'll...", "Let me...", "B-3 ✅. Now B-4...", "All 5 chunks loaded..."), no result echoes, no status updates. Hold all intermediate findings until the final response or a blocker.
@@ -806,7 +806,19 @@ function sub(){var n=document.getElementById('f-name').value.trim();var d=docume
 </script>
 ```
 
-After `sendPrompt` fires, the values arrive as the next user message. Parse `name`, `domain`, and `tier` from it. As soon as tier is confirmed, render the tier summary widget (see below) before proceeding to Step 1b.
+After `sendPrompt` fires, the values arrive as the next user message. Parse `name`, `domain`, and `tier` from it. Run **Step 1a-R** below, then render the tier summary widget (see below) before proceeding to Step 1b.
+
+**Step 1a-R — Start record**
+
+Runs once, right after the Step 1a values are parsed and before the tier summary widget. It is silent: no prose, no widget, no question. It never blocks the onboarding. Any failure is ignored and the flow continues to the tier summary.
+
+1. **Fix the slug.** Run `python3 scripts/analytics_start.py --slug-only --name "<name>"`. It prints `SLUG <slug>`: the customer name lowercased, with every run of other characters replaced by `-` (`Acme Retail` → `acme-retail`). This is the same rule as `slugify()` in `generate_sdk_patched.py`. If it prints `WARNING` instead (a name with no letters or digits), skip the rest of Step 1a-R. Use this slug as `<SLUG>` for the website profile (`<SLUG>.json`) and the analytics sidecar for the rest of the session, so the start record and the Step 14b-A record land in the same file.
+2. **Write the start record** (local file only):
+   ```bash
+   python3 scripts/analytics_start.py --run-id "<runId>" --started-at "<runStartedAt>" \
+     --name "<name>" --domain "<domain>" --tier "<tier>"
+   ```
+   It adds this run to `<SLUG>.analytics.json` with `status: "started"`, `workflowMode: "new"`, `action: "full_onboarding"`, the tier, the customer name and the domain, keyed by `runId`. It prints `OK <slug>` (ignore the line of JSON after it). A `WARNING` line means nothing was written; continue either way.
 
 **Step 1b — Environment**
 
@@ -4177,7 +4189,7 @@ This step runs immediately after the Step 14 final response. It has four sub-ste
 
 #### 14b-A — Write the analytics sidecar
 
-Before showing the completion widget, write one run record to `<slug>.analytics.json`. This is a sidecar file — the operational profile (`<slug>.json`) is never modified here.
+Before showing the completion widget, write this run's record to `<slug>.analytics.json`. If Step 1a-R already wrote a start record for this `runId`, the script completes that record instead of adding a second one. This is a sidecar file — the operational profile (`<slug>.json`) is never modified here.
 
 **Analytics failure is non-critical.** If the bash script fails or the analytics file cannot be written, emit one concise warning line in chat and proceed immediately to 14b-B. Do not roll back the SDK Config work, do not alter readiness, do not re-run the upload.
 
@@ -4234,6 +4246,7 @@ except:
 
 run_record = {
     'runId': run_id,
+    'status': 'completed',
     'startedAt': started_at,
     'completedAt': completed_at,
     'durationSeconds': duration_seconds,
@@ -4326,7 +4339,19 @@ if operator_email:
     analytics['operator'] = {'email': operator_email, 'source': 'meta[name=acoustic-id] on app.goacoustic.com'}
 analytics['lastUpdatedAt'] = completed_at
 
-analytics['runHistory'].append(run_record)
+# Complete this run's start record (written after Step 1a by scripts/analytics_start.py)
+# instead of adding a second record for the same runId.
+existing = next((r for r in analytics['runHistory'] if isinstance(r, dict) and r.get('runId') == run_id), None)
+if existing is None:
+    analytics['runHistory'].append(run_record)
+else:
+    if not run_record.get('operatorEmail') and existing.get('operatorEmail'):
+        run_record['operatorEmail'] = existing['operatorEmail']
+    for k in ('customerName', 'productionDomain'):
+        if existing.get(k):
+            run_record.setdefault(k, existing[k])
+    existing.clear()
+    existing.update(run_record)
 
 try:
     analytics_path.write_text(json.dumps(analytics, indent=2, ensure_ascii=False) + '\n')
@@ -4342,6 +4367,7 @@ except Exception as e:
 | Field | Source |
 |---|---|
 | `runId` | Generated at Pre-step |
+| `status` | `started` from Step 1a-R until this step sets `completed`. A record still `started` is a session that stopped before Step 14b. Records written before Step 1a-R existed have no `status`. |
 | `startedAt` | Captured at Pre-step |
 | `workflowMode` | Step 0 answer (`new` or `existing`) |
 | `action` | Step 0 sub-path: new onboarding → `full_onboarding`; existing → `regenerate`, `reinspect_and_regenerate`, `reupload`, or `resume_validation` |

@@ -16,12 +16,13 @@ only needs to swap the .js file between rounds — no script reinstall needed.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import re
 import sys
 import time
 import urllib.request
-from datetime import datetime, timezone, timezone
+from datetime import datetime, timezone
 from pathlib import Path
 from textwrap import indent, dedent
 from typing import Any
@@ -33,8 +34,11 @@ BASE_INIT_LOG_SIGNAL_URL = (
     "/dxdam/35/35cc26b5-a0ec-4e55-8c8e-a42b40cc54e1/initLogSignal.js"
 )
 # initLogSignal.js ships with the skill in assets/ and is read from there.
+# INIT_LOG_SIGNAL_SHA256 is the hash of the reviewed copy in assets/. Update it in the
+# same commit as the file (see "Updating assets/initLogSignal.js" in RELEASING.md).
 # BASE_INIT_LOG_SIGNAL_URL (Acoustic's public CDN copy) is the fallback, used only
 # when neither --base-js nor assets/initLogSignal.js is available. See load_base().
+INIT_LOG_SIGNAL_SHA256 = "85016d303c00b64cb1c0fb7e0ffaab94cb89e4b1f50aaa14f8c2fcaeca93c883"
 ASSETS_DIR = Path(__file__).parent.parent / "assets"
 SDK_TEMPLATE_PATH = ASSETS_DIR / "sdk-template.js"
 SDK_INSERT_MARKER = "// InitLogsignsal here - do not remove this comment"
@@ -180,6 +184,8 @@ def load_base(base_js_path: "Path | None") -> str:
         js = _read_base_file(_LOCAL_BASE_JS)
         if js is not None:
             print(f"[ACO] Loaded base JS from {_LOCAL_BASE_JS} ({len(js):,} chars)", file=sys.stderr)
+            if hashlib.sha256(_LOCAL_BASE_JS.read_bytes()).hexdigest() != INIT_LOG_SIGNAL_SHA256:
+                print("[ACO] WARNING: assets/initLogSignal.js differs from the reviewed copy (INIT_LOG_SIGNAL_SHA256)", file=sys.stderr)
     if js is None:
         js = fetch_base_from_cdn()
     return _inject_helpers(js)
@@ -254,6 +260,8 @@ def _field_lines(field_specs: dict[str, Any]) -> list[str]:
             continue
         chain = " || ".join(exprs)
         if field == "effect":
+            # Effect is a string enum: skip numeric/array transforms to avoid
+            # parseFloat('positive') -> NaN||'positive' accidental-correctness.
             lines.append(f"    var _eff = String({chain} || 'positive');")
             lines.append("    // default 'positive' per schema — 'neutral' is not a valid effect value")
             lines.append("    signal.effect = _eff === 'negative' ? 'negative' : 'positive';")
@@ -812,9 +820,6 @@ def configure_init_log_signal(base_js: str, profile: dict[str, Any]) -> str:
 # Full SDK Config assembly (insert into template)
 # ---------------------------------------------------------------------------
 
-_PRO_TIER_NAMES = {'pro', 'connectpro'}
-
-
 def build_full_sdk(configured_init_log_signal: str, profile: dict[str, Any]) -> str:
     customer = profile.get("customer", {})
     app_key = customer.get("appKey", "TODO")
@@ -838,7 +843,24 @@ def build_full_sdk(configured_init_log_signal: str, profile: dict[str, Any]) -> 
     _before = sdk
     sdk = re.sub(r'"Acoustic\.com webApp Connect - [^"]*"', json.dumps(build_note), sdk, count=1)
     if sdk == _before:
-        print("[ACO] WARNING: build-note substitution found no match", file=sys.stderr)
+        print("[ACO] WARNING: build-note substitution found no match — template may have changed", file=sys.stderr)
+
+    # Pro-tier: disable DOM capture, gestures, ajaxListener, overstat, mousemove, frames
+    tier = customer.get("tier", profile.get("settings", {}).get("tier", ""))
+    _PRO_TIER_NAMES = {'pro', 'connectpro'}
+    if tier.lower().replace('-', '').replace(' ', '').strip() in _PRO_TIER_NAMES:
+        pro_overrides = (
+            "\n        // Pro-tier overrides\n"
+            "        config.core.modules.gestures.enabled = false;\n"
+            "        config.core.modules.ajaxListener.enabled = false;\n"
+            "        config.core.frames = {};\n"
+            "        config.modules.replay.domCapture.enabled = false;\n"
+            "        config.core.modules.overstat.enabled = false;\n"
+            "        config.modules.replay.mousemove.enabled = false;\n"
+        )
+        sdk = sdk.replace("        return config;", pro_overrides + "        return config;", 1)
+        # addAjaxListener: false is set via initLibAdv call in sdk-template.js
+        # The ajaxListener module is already disabled above via config.core.modules.ajaxListener.enabled = false
 
     return sdk
 
