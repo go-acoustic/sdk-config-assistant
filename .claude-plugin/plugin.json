@@ -1,6 +1,6 @@
 {
   "name": "sdk-config-assistant",
-  "version": "1.4.0",
+  "version": "1.4.1",
   "description": "Acoustic Connect JavaScript SDK signal configuration: generate one from a live website in Cowork, then hand-code and test it in Claude Code.",
   "author": {
     "name": "Acoustic"
