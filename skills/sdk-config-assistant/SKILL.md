@@ -353,7 +353,7 @@ Then `AskUserQuestion` with exactly these three options — this keeps the gate 
 
 ---
 
-## Step 0 — Config for New domain or Modify Existing Config?
+## Step 0 — New domain or modify an existing config?
 
 **This is the very first step — run it before any Chrome checks or onboarding questions.**
 
@@ -361,10 +361,10 @@ Then `AskUserQuestion` with exactly these three options — this keeps the gate 
 
 Use `AskUserQuestion` with exactly two options:
 
-- **New Domain** — New domain onboarding (Full onboarding — inspect, generate, upload)
+- **New domain** — New domain onboarding (Full onboarding — inspect, generate, upload)
 - **Modifying an existing customer SDK Config** — Update a previously created customer SDK Config
 
-Set `mode = "new"` if the user selects "New Domain", `mode = "existing"` if "Modifying an existing customer SDK Config".
+Set `mode = "new"` if the user selects "New domain", `mode = "existing"` if "Modifying an existing customer SDK Config".
 
 Read the result via `mcp__cowork__read_widget_context`.
 
@@ -767,7 +767,7 @@ Title: `intake_step1a`. Single loading message: `"Loading intake form…"`.
 .btn-cont{background:#706CFF;color:#fff;border:none;border-radius:8px;padding:9px 20px;font-size:12px;font-weight:600;width:100%;margin-top:8px;opacity:.35;cursor:not-allowed;transition:opacity .15s}
 </style>
 <div class="ep">
-  <div style="font-size:14px;font-weight:600;color:var(--color-text-primary);margin-bottom:16px">New Domain — step 1 of 3</div>
+  <div style="font-size:14px;font-weight:600;color:var(--color-text-primary);margin-bottom:16px">New domain — step 1 of 3</div>
   <div class="eg">
     <label class="eq">Site name</label>
     <input id="f-name" class="ei" type="text" placeholder="e.g. My Retail Site" oninput="cr()"/>
@@ -845,7 +845,7 @@ Use `mcp__visualize__show_widget` to ask how to obtain credentials. Title: `inta
 .btn-cont{background:#706CFF;color:#fff;border:none;border-radius:8px;padding:9px 20px;font-size:12px;font-weight:600;width:100%;margin-top:8px;opacity:.35;cursor:not-allowed;transition:opacity .15s}
 </style>
 <div class="ep">
-  <div style="font-size:14px;font-weight:500;color:var(--color-text-primary);margin-bottom:16px">New Domain — step 2 of 3</div>
+  <div style="font-size:14px;font-weight:500;color:var(--color-text-primary);margin-bottom:16px">New domain — step 2 of 3</div>
   <div class="eg">
     <label class="eq">How should I get the app key and collector URL?</label>
     <div class="pills" id="cp">

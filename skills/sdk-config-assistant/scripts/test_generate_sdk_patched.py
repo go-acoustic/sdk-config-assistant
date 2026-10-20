@@ -162,7 +162,9 @@ class TestBuildNoteWarning(unittest.TestCase):
     def test_no_warning_with_real_template(self):
         err = io.StringIO()
         with redirect_stderr(err):
-            gen.build_full_sdk("function initLogSignal(){}", _profile())
+            sdk = gen.build_full_sdk("function initLogSignal(){}", _profile(production_domain="www.mysite.co.uk"))
+        # The note must actually land in the build, not just the warning stay silent.
+        self.assertRegex(sdk, r'"www\.mysite\.co\.uk - \d{8}"')
         self.assertNotIn("build-note substitution found no match", err.getvalue())
 
 
