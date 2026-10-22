@@ -67,7 +67,7 @@ Use exactly one label. Derive it from the actual state of the current run — ne
 **Accuracy rules (mandatory):**
 - Do not claim `Production ready` while any signal is escalated or unresolved.
 - Do not claim `Ready for production review` if browser verification (Step 13) was not completed in this session.
-- Do not state "Uploaded to the Media Gallery (Connect CMS)" unless `cmsUploaded = true` for this run.
+- Do not state "Uploaded to the customer's Connect media library" unless `cmsUploaded = true` for this run.
 - Do not state "Browser verification passed" unless Step 13 ran and the user confirmed signals in the browser.
-- The Media Gallery upload is optional on every tier. When the user chose direct handover in Step 10-pre (`cmsRequired = false`), say the customer hosts the file themselves rather than reporting an upload status.
+- The Connect media library upload is optional on every tier. When the user chose direct handover in Step 10-pre (`cmsRequired = false`), say the customer hosts the SDK Config on their own CDN rather than reporting an upload status.
 - The readiness label written to the Step 14 final response must match the `readiness` value recorded in the analytics sidecar run record.
