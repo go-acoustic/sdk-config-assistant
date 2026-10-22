@@ -11,9 +11,11 @@ description: Inspect live customer websites with an available browser automation
 > ⛔ **HARD RULE — terminology.** Two different things are involved, and every message, widget, file, report and comment must name them correctly. Calling the SDK Config "the SDK" is a defect.
 >
 > - **SDK** — Acoustic's JavaScript library (`acoconnect.js` / `acoconnect.min.js`, `window.TLT`). It is the same for every customer and knows how to send data to Acoustic. It is owned by Acoustic, and versioned and deployed to the Acoustic CDN by Acoustic P&E. This skill and sdk-config-coding never create, edit, version or deploy it.
-> - **SDK Config** — the customer-specific JavaScript glue code that runs in the browser, maps actions on the customer's website to the SDK's programmatic interface (`initLogSignal`, triggers, `enhance`) and calls the SDK to send them to Acoustic. It is created by Acoustic (typically Professional Services, sometimes implementation or a CSM) or by the customer, and it is owned by the customer, who can delegate its maintenance to Acoustic under a service contract. It is deployed to the customer's CDN, or uploaded to the Acoustic Media Library in their subscription and served by the Acoustic CDN on their behalf. This is what this skill generates, hand over, fix and prepare for production.
+> - **SDK Config** — the customer-specific JavaScript glue code that runs in the browser, maps actions on the customer's website to the SDK's programmatic interface (`initLogSignal`, triggers, `enhance`) and calls the SDK to send them to Acoustic. It is created by Acoustic (typically Professional Services, sometimes implementation or a CSM) or by the customer, and it is owned by the customer, who can delegate its maintenance to Acoustic under a service contract. The customer hosts it: ideally on their own CDN, otherwise in their Connect media library, in their own subscription. They can update it themselves in either case. This is what this skill generates, hand over, fix and prepare for production.
 >
 > Use "SDK Config" for the second, every time — never "the SDK", "SDK bundle", "SDK loader", "SDK files" or "handed-off SDK" for it. Use "SDK" only for Acoustic's library. Existing file names and JSON keys keep their names because other files depend on them (`acoConnectSdkConfig-<domain>.js`, `acoconnect-loader.js`, `handoff/original-sdk.js`, `originalSdkFileName`, `acoustic.sdkBundle`): they all hold or describe the SDK Config, and must be described that way.
+
+> **Where the SDK Config is hosted — Connect terms (hard rule).** For Connect, the customer hosts the SDK Config: ideally on their own CDN, otherwise in their **Connect media library**, in their own subscription. In both cases the customer can update it themselves; no ticket to Acoustic is needed. Say "the customer hosts the SDK Config on their own CDN or in their Connect media library". Never say "we host the SDK Config in Content", and never call the media library "Content" (or "Acoustic Content" / "Content Hub"): people read that as the Acoustic Content product, hosted by Acoustic and changed only by raising a ticket. **Media Gallery** is the Connect menu item where the customer uploads files to their media library: name it when telling someone where to click ("in Connect, open Media Gallery"), and call the place itself the Connect media library. (Tealeaf SDK Configs were hosted in Acoustic Content; that is Tealeaf only and never applies to Connect.) URLs, API paths and keys keep their names (`/content/api/...`, `connect/Content/content-library`, `cmsRequired`, `cmsUploaded`, `acoustic_cms`, `cms_upload`): describe them in these terms.
 
 
 ## Guardrails — read before executing any step
@@ -38,16 +40,16 @@ Step 0 (new vs existing)
   → Step 12 (JS review)
   → Step 13 (browser verify)
   → Step 10-pre (deployment choice) ← every tier; Step 13 is the gate
-                                      Option 1: Download & host (recommended) → Step 14 directly
-                                      Option 2: Other options → Step 10 (Media Gallery upload)
-  → Step 10 (upload to Media Gallery)   ← Only if Step 10-pre Option 2 selected
+                                      Option 1: Customer hosts on own CDN (recommended) → Step 14 directly
+                                      Option 2: Other options → Step 10 (Connect media library upload)
+  → Step 10 (upload to Connect media library)   ← Only if Step 10-pre Option 2 selected
   → Step 14 (final response)
   → Step 14b (analytics sidecar write + completion + feedback + session backup)
   → Step 14b-E (coding assistant handoff) ← only if the user clicks "Use coding assistant" on feedback_saved and confirms
 ```
 
 - **Never skip a step** — each gate (8b, Validation) is a mandatory stop. Proceeding past a gate without completing it is a skill defect.
-- **Never reorder steps** — post-generation edits (Step 11) always precede JS review (Step 12), which precedes browser verify (Step 13), which precedes Step 10-pre (deployment choice). Step 10 (Media Gallery upload) only runs if the user explicitly selects Option 2 in Step 10-pre. Upload MUST NOT run until Steps 11, 12, and 13 are all confirmed complete and Step 10-pre Option 2 has been selected. **Step 10-pre runs on every tier** — Pro, Premium, and Ultimate all get the same deployment choice, with direct handover recommended. Never skip Step 10-pre because of the tier, and never upload without Option 2 having been selected.
+- **Never reorder steps** — post-generation edits (Step 11) always precede JS review (Step 12), which precedes browser verify (Step 13), which precedes Step 10-pre (deployment choice). Step 10 (Connect media library upload) only runs if the user explicitly selects Option 2 in Step 10-pre. Upload MUST NOT run until Steps 11, 12, and 13 are all confirmed complete and Step 10-pre Option 2 has been selected. **Step 10-pre runs on every tier** — Pro, Premium, and Ultimate all get the same deployment choice, with direct handover recommended. Never skip Step 10-pre because of the tier, and never upload without Option 2 having been selected.
 - **Never present a config with `// TODO:` lines** — a generated config containing any `// TODO: map signal.*` or `// TODO: extract` line is not complete output. Presenting it to the user, showing it in a widget, or passing it to the validation gate before all TODOs are resolved is a skill defect. Every TODO is a field that sends nothing to Acoustic — a complete capture failure for that signal field. Step 9C (TODO scan) must return 0 before any other action.
 - **Never combine steps** — do not merge two steps into one tool call or one response turn. Steps 1a, 1b, and 1c are explicitly separate widgets — rendering them as a single combined form is a skill defect.
 - **Never add unlisted steps** — any step not in the numbered sequence above is not part of this skill and must not be executed.
@@ -166,7 +168,7 @@ This skill executes two kinds of mechanical work: (1) navigating live pages and 
   - Transition confirmation: "Credentials retrieved. Now showing the confirmation widget." ← FORBIDDEN
   - Screenshot observation: "I can see the button at coordinate X." / "The page loaded successfully." ← FORBIDDEN
   - Step-complete + next-step announce: "Step 11 complete. Now Step 12 — JS review." ← FORBIDDEN
-  - Step-number references in transition status lines: "Steps 11, 12, 13 all confirmed. Proceeding to Step 10 — CMS upload." ← FORBIDDEN. Use the action name only: "Steps confirmed. Proceeding to CMS upload." ← CORRECT
+  - Step-number references in transition status lines: "Steps 11, 12, 13 all confirmed. Proceeding to Step 10 — media library upload." ← FORBIDDEN. Use the action name only: "Steps confirmed. Proceeding to media library upload." ← CORRECT
   - "Let me…" / "Now I'll…" / "I'll now…" before any tool call ← FORBIDDEN
   - Any sentence that describes what was just seen, what just happened, or what is about to happen ← FORBIDDEN
   - The ONLY permitted output between consecutive tool calls is a single plain status line immediately before the next tool call (e.g. "Navigating to Sign-in page."). If no status line is needed, emit nothing.
@@ -203,7 +205,7 @@ This order is **authoritative**. No later widget definition, step, or routing in
 17. `signal_escalation` — only after a failed retest exhausts the attempt limit
 18. Browser-verification gate (Step 13)
 19. `deployment_choice` — every tier
-20. Selected deployment branch (`deployment_instructions` or CMS flow)
+20. Selected deployment branch (`deployment_instructions` or media library flow)
 21. `signals_configured`
 22. Session-completion/review widget
 23. `session_feedback`
@@ -1748,7 +1750,7 @@ profile_path.write_text(json.dumps(profile, indent=2))
 
 The generator uses `assets/initLogSignal.js` (shipped with the skill) as its base. If that file is missing or invalid, the generator falls back to Acoustic's public CDN copy on its own; see below. Always use `scripts/generate_sdk_patched.py` (not `generate_sdk.py`) — the patched version resolves additional field-source formats, enforces the TODO hard-block, injects the audience signal, and updates privacy targets automatically.
 
-The output folder is always `sdk-config-assistant/<host>/` in the added folder, where `<host>` is the site's production hostname (see **Folder layout** in the Pre-step). Never choose another name, and never write output anywhere else — Step 9's file listing, the CMS upload, and the coding handoff all look for it there. A site folder that already exists is reused; the generator overwrites its files.
+The output folder is always `sdk-config-assistant/<host>/` in the added folder, where `<host>` is the site's production hostname (see **Folder layout** in the Pre-step). Never choose another name, and never write output anywhere else — Step 9's file listing, the media library upload, and the coding handoff all look for it there. A site folder that already exists is reused; the generator overwrites its files.
 
 ```bash
 PROFILE=/absolute/path/website-profile.json
@@ -2917,7 +2919,7 @@ print('passed:', passed)
 | Pro / Premium / Ultimate | All resolved | Proceed to Step 11 → Step 12 → Step 13 → Step 10-pre (deployment choice). Identical on every tier. |
 
 > ⚠️ **GUARDRAIL — production path after a fully resolved matrix (every tier):**
-> - **DO NOT** skip Steps 11, 12, or 13. Post-generation edits, JS review, and browser verification must complete before Step 10-pre runs. Step 10 (CMS upload) only runs if Step 10-pre Option 2 is selected.
+> - **DO NOT** skip Steps 11, 12, or 13. Post-generation edits, JS review, and browser verification must complete before Step 10-pre runs. Step 10 (media library upload) only runs if Step 10-pre Option 2 is selected.
 > - **DO NOT** auto-pass any signal. Only signals explicitly marked `passed` in the matrix (or retest) with `completed: true` are considered validated.
 > - **DO NOT** increment attempts for blocked, not_tested, or passed signals.
 > - Escalated signals remain `completed: false` — they cannot be reset.
@@ -2948,7 +2950,7 @@ print('mode set to production')
    - Step 12: JS review — confirm `fakeSignals: false`, `errorLog: false`, expected `signalsLog`.
    - Step 13: browser verification.
    - Step 10-pre: deployment choice — shown on every tier.
-   - Step 10: Media Gallery (Connect CMS) upload — only when the user selects `acoustic_cms` in Step 10-pre.
+   - Step 10: Connect media library upload — only when the user selects `acoustic_cms` in Step 10-pre.
 
 > ⛔ **HARD GATE — Step 10 may only run when `step11Complete`, `step12Complete`, and `step13Complete` are all true AND `deploymentChoice === 'acoustic_cms'`.** Any route that reaches Step 10 without satisfying all four conditions is a skill defect.
 
@@ -2974,11 +2976,11 @@ Treat identically to "Not yet — come back later". Write the one sentence. Stop
 
 ---
 
-> ⛔ **HARD GATE — Step 10 pre-conditions:** Step 10 (CMS upload) may run ONLY when ALL of the following are true: (1) `step11Complete = true`, (2) `step12Complete = true`, (3) `step13Complete = true`, (4) `deploymentChoice === 'acoustic_cms'`. No route — production flip, regenerate, re-upload, or any other — may bypass this gate.
+> ⛔ **HARD GATE — Step 10 pre-conditions:** Step 10 (media library upload) may run ONLY when ALL of the following are true: (1) `step11Complete = true`, (2) `step12Complete = true`, (3) `step13Complete = true`, (4) `deploymentChoice === 'acoustic_cms'`. No route — production flip, regenerate, re-upload, or any other — may bypass this gate.
 
-### 10. Upload the SDK Config to the Media Gallery (Connect CMS)
+### 10. Upload the SDK Config to the customer's Connect media library
 
-> ⛔ **HARD GATE — Steps 11, 12, 13, and Step 10-pre (Option 2 selected) must all be complete before this step runs.** Enhance functions must be written (Step 11), the generated JS reviewed (Step 12), signals verified in the browser (Step 13), and the user must have explicitly selected "Host it in the Media Gallery (Connect CMS)" in Step 10-pre. Starting the upload before all four are done is a skill defect. If any are incomplete, return to the missing step first.
+> ⛔ **HARD GATE — Steps 11, 12, 13, and Step 10-pre (Option 2 selected) must all be complete before this step runs.** Enhance functions must be written (Step 11), the generated JS reviewed (Step 12), signals verified in the browser (Step 13), and the user must have explicitly selected "Host it in the customer's Connect media library" in Step 10-pre. Starting the upload before all four are done is a skill defect. If any are incomplete, return to the missing step first.
 
 > ⚠️ **GUARDRAIL — this step is fully automated. Never give manual upload instructions. Never ask the user to upload the file themselves. Run Steps A → B → C autonomously using Claude in Chrome browser tools. If the upload fails, report the error and ask the user to retry — never hand off the upload task to them as a first resort.**
 
@@ -2992,7 +2994,7 @@ Before starting the upload, call `mcp__visualize__show_widget` (title: `upload_l
     </div>
     <div>
       <div style="font-size:14px;font-weight:600;color:var(--color-text-primary)">Sign in to Acoustic Connect</div>
-      <div style="font-size:12px;color:var(--color-text-tertiary);margin-top:4px">Please make sure you're signed in to <strong>app.goacoustic.com</strong> in Chrome before we upload the SDK Config to the Media Gallery (Connect CMS).</div>
+      <div style="font-size:12px;color:var(--color-text-tertiary);margin-top:4px">Please make sure you're signed in to <strong>app.goacoustic.com</strong> in Chrome before we upload the SDK Config to the customer's Connect media library.</div>
     </div>
   </div>
   <button onclick="sendPrompt('I am signed in to Acoustic Connect — start the upload')" style="width:100%;padding:10px 16px;background:#1F1E5D;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:500;cursor:pointer;font-family:inherit">
@@ -3039,7 +3041,7 @@ print('existing_uuid:', existing_uuid or '(none)')
 
 **Step 1 — Navigate to the correct org:**
 
-Check the profile for a saved `subscriptionId` (the CMS UI org identifier — captured from `<meta name="subscription-id">` on `connect/Content/content-library` during first upload; distinct from `acousticTenantId` which is used only for the CDN delivery URL):
+Check the profile for a saved `subscriptionId` (the media library org identifier — captured from `<meta name="subscription-id">` on `connect/Content/content-library` during first upload; distinct from `acousticTenantId` which is used only for the CDN delivery URL):
 
 ```python
 import json, pathlib, glob as _glob
@@ -3052,7 +3054,7 @@ print('subscriptionId:', sub_id or '(none)')
 **Both first upload and re-upload use `?subId=` navigation.** The difference is only in how `subscriptionId` is obtained:
 
 - **If `subscriptionId` is already in the profile** (re-upload or first upload resumed): navigate directly to `https://app.goacoustic.com/content/my-content?subId={subscriptionId}`. Wait 2s, then navigate to `https://app.goacoustic.com/content/items/assets`.
-- **If `subscriptionId` is absent** (genuinely first upload, no prior CMS session): navigate to `https://app.goacoustic.com/connect/Content/content-library` first. Once loaded, read and immediately save the subscription meta tags:
+- **If `subscriptionId` is absent** (genuinely first upload, no prior media library session): navigate to `https://app.goacoustic.com/connect/Content/content-library` first. Once loaded, read and immediately save the subscription meta tags:
   ```js
   JSON.stringify({
     subscriptionId: document.querySelector('meta[name="subscription-id"]')?.content,
@@ -3062,7 +3064,7 @@ print('subscriptionId:', sub_id or '(none)')
   ```
   Save `subscriptionId` to `profile.acoustic.subscriptionId`, `subscriptionName` to `profile.acoustic.contentOrgName`, and `operatorEmail` to `profile.acoustic.operatorEmail`. **Then immediately navigate via `?subId=`** — `https://app.goacoustic.com/content/my-content?subId={subscriptionId}`. Wait 2s, then navigate to `https://app.goacoustic.com/content/items/assets`.
 
-> ⚠️ **Why `?subId=` is always required:** The Acoustic Connect (`/connect/...`) and Content Hub (`/content/...`) maintain independent tenant context. Reading meta tags from the Connect side does not force the Content Hub into the same org. The `?subId=` navigation is the only reliable way to set Content Hub tenant context — skipping it causes the registry API and all asset upload calls to operate on whichever org the browser last used in the Content Hub, which may be wrong even on a first upload.
+> ⚠️ **Why `?subId=` is always required:** Connect's own pages (`/connect/...`) and its media library pages (`/content/...`) keep separate tenant context. Reading meta tags from the Connect side does not force the media library pages into the same org. The `?subId=` navigation is the only reliable way to set the media library's tenant context — skipping it causes the registry API and all asset upload calls to operate on whichever org the browser last used in the Content Hub, which may be wrong even on a first upload.
 
 Wait ~2s for the page to settle.
 
@@ -3083,7 +3085,7 @@ Call `mcp__visualize__show_widget` (title: `org_confirmation`) — substitute `C
 ```html
 <div style="padding:1.25rem;font-family:var(--font-sans);max-width:420px">
   <div style="font-size:13px;font-weight:600;color:var(--color-text-primary);margin-bottom:4px">Confirm Acoustic Connect org</div>
-  <div style="font-size:12px;color:var(--color-text-secondary);margin-bottom:16px">Before accessing the Content Hub, confirm this tab is in the correct org.</div>
+  <div style="font-size:12px;color:var(--color-text-secondary);margin-bottom:16px">Before opening the media library, confirm this tab is in the correct org.</div>
   <div style="background:var(--color-background-secondary);border-radius:var(--border-radius-md);padding:12px 14px;margin-bottom:16px;font-size:12px">
     <div style="display:flex;justify-content:space-between;margin-bottom:6px">
       <span style="color:var(--color-text-tertiary)">Detected org</span>
@@ -3144,9 +3146,9 @@ Then use `mcp__Claude_in_Chrome__get_page_text` to read the JSON response.
 
 > ⚠️ **URL preservation rule:** If the asset is found, always use Step B2. Creating a new asset when one already exists would invalidate the customer's live GTM tag or `<script src>`.
 
-**Step B — Upload the SDK Config to the Media Gallery (Connect CMS) (new asset — direct API)**
+**Step B — Upload the SDK Config to the customer's Connect media library (new asset — direct API)**
 
-Uses the Acoustic Connect CMS REST API directly from within the authenticated browser tab. No file picker, no iframe, no modal interaction. This approach was proven against a live EU tenant on 2026-07-20.
+Uses the Connect media library API (`/content/api/...`) directly from within the authenticated browser tab. No file picker, no iframe, no modal interaction. This approach was proven against a live EU tenant on 2026-07-20.
 
 > **Narration rule — HARD STOP:** Immediately before starting any upload tool calls, call `mcp__visualize__show_widget` (title: `sdk_upload_progress`, loading: `"Uploading SDK Config…"`) with the widget below. After that widget renders, execute B-3, B-3b, and B-4 **in complete silence** — zero prose, zero result echoes, zero confirmations between sub-steps. No chunk injection confirmations, no resource IDs, no asset IDs, no mediaIds, no "All N chunks injected" messages, no "Session 200 ✅" lines. Silence means silence: every word between the widget call and the final profile write is a T-11 defect. If a sub-step fails, emit the HTTP status code only. After the profile is written, emit `"Done — profile updated."` only.
 >
@@ -3158,7 +3160,7 @@ Uses the Acoustic Connect CMS REST API directly from within the authenticated br
 > </div>
 > ```
 
-> **Page context guard rail:** The Acoustic Content authoring API is tenant-scoped. API calls made from `/content/my-content` or other hub pages return 404 tenant errors even with a valid session — the tenant context is only correct when the tab is at `/content/items/assets`. Before running any upload steps, silently navigate to `https://app.goacoustic.com/content/items/assets` using `mcp__Claude_in_Chrome__navigate` and wait ~2s for the page to load. Do not mention this navigation to the user.
+> **Page context guard rail:** The media library authoring API (`/content/api/authoring`) is tenant-scoped. API calls made from `/content/my-content` or other hub pages return 404 tenant errors even with a valid session — the tenant context is only correct when the tab is at `/content/items/assets`. Before running any upload steps, silently navigate to `https://app.goacoustic.com/content/items/assets` using `mcp__Claude_in_Chrome__navigate` and wait ~2s for the page to load. Do not mention this navigation to the user.
 
 > **Session guard rail:** After navigating to the assets page, probe the session with a lightweight GET. If the probe returns 401, 403, or redirects to the login page, pause immediately and call `mcp__visualize__show_widget` with the session-expired widget defined below. No prose before or after the widget. After the user clicks the button and responds, re-probe once. If still 403, stop and surface the error code only.
 
@@ -3187,7 +3189,7 @@ Read `window.__sessionCheck` after ~3s. If `200`, proceed. If `401` or `403`, ca
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#B45309" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
     </div>
     <div>
-      <div style="font-size:14px;font-weight:600;color:var(--color-text-primary)">Media Gallery (Connect CMS) — session expired</div>
+      <div style="font-size:14px;font-weight:600;color:var(--color-text-primary)">Connect media library — session expired</div>
       <div style="font-size:12px;color:var(--color-text-tertiary);margin-top:4px">The upload step requires an active Acoustic Connect session. Please sign back in before continuing.</div>
     </div>
   </div>
@@ -3654,18 +3656,18 @@ Then **skip Step C** — proceed directly to "Persist profile after upload".
 
 ---
 
-**Step C — Get the Delivery URL from the Media Gallery (Connect CMS)**
+**Step C — Get the Delivery URL from the customer's Connect media library**
 
 > **When to use Step C:** Step C is no longer required for Step B or Step B2. Both paths now use the direct API — Step B gets the delivery URL from B-4; Step B2 reads the delivery URL from the profile (unchanged). Step C is retained as a fallback only, if B-4 fails to return a path for Step B.
 
 
-After a successful upload, retrieve the CDN Delivery URL programmatically. No manual navigation, no modal clicks required — the delivery URL is constructed entirely from two API calls that work on any Connect CMS page.
+After a successful upload, retrieve the CDN Delivery URL programmatically. No manual navigation, no modal clicks required — the delivery URL is constructed entirely from two API calls that work on any Connect media library page.
 
 
 Run this JavaScript while still on `app.goacoustic.com/connect/Content/content-library` (the upload page from Step B):
 
 ```js
-// Step 1 — Delivery host: always present in performance entries because the Connect CMS
+// Step 1 — Delivery host: always present in performance entries because the Connect media library
 // loads auth resources from content-us-N.content-cms.com on every page load.
 const deliveryHost = performance.getEntriesByType('resource')
   .map(e => { const m = e.name.match(/^(https:\/\/content-us-\d+\.content-cms\.com)/); return m?.[1]; })
@@ -3686,9 +3688,9 @@ JSON.stringify({ deliveryHost, assetUrl, deliveryUrl });
 ```
 
 **Why this works:**
-- `deliveryHost` — the Connect CMS always loads `/login/v1/provider/commonui` from `content-us-N.content-cms.com`, so the correct host is always in `performance.getEntriesByType('resource')`. This value is org-specific and changes per customer tenant.
+- `deliveryHost` — the Connect media library always loads `/login/v1/provider/commonui` from `content-us-N.content-cms.com`, so the correct host is always in `performance.getEntriesByType('resource')`. This value is org-specific and changes per customer tenant.
 - `assetUrl` — the delivery search API returns a `url` field shaped `/<tenant-id>/dxdam/<first2>/<uuid>/<filename>`. This is the tenant-relative path Acoustic's CDN uses.
-- Combining them gives the full public Delivery URL — identical to what the "API information" modal shows in the Connect CMS UI.
+- Combining them gives the full public Delivery URL — identical to what the "API information" modal shows in the Connect media library.
 
 If `deliveryUrl` is null (rare — the page loaded before performance entries were populated), **do not navigate away**. Instead wait 1000ms and re-run the same snippet on the current content-library page. Only if it fails a second time: use the delivery search API result's `url` field directly by prepending `https://content-us-N.content-cms.com` (substitute N from the tenant). Do not navigate to `/content/my-content`.
 
@@ -3697,7 +3699,7 @@ If `deliveryUrl` is null (rare — the page loaded before performance entries we
 ```html
 <div style="padding:0.75rem 0;font-family:var(--font-sans)">
   <div style="font-size:13px;font-weight:600;color:var(--color-text-primary);margin-bottom:12px">
-    SDK Config uploaded to the Media Gallery (Connect CMS) ✅
+    SDK Config uploaded to the customer's Connect media library ✅
   </div>
   <div style="display:flex;flex-direction:column;gap:8px">
     <div style="background:var(--color-background-secondary);border-radius:8px;padding:10px 14px">
@@ -3959,14 +3961,14 @@ Show the deployment choice widget using `mcp__visualize__show_widget` (title: `d
       <span class="chk" aria-hidden="true">✓</span>
       <div>
         <div class="pill-label">⬇ Download and host it <span class="default-badge">Recommended</span></div>
-        <div class="pill-desc">Hand the SDK Config file over for the customer to upload to their own web server.</div>
+        <div class="pill-desc">Hand the SDK Config file over for the customer to host on their own CDN.</div>
       </div>
     </button>
     <button type="button" class="pill" data-value="other_options" onclick="sp(this)">
       <span class="chk" aria-hidden="true">✓</span>
       <div>
         <div class="pill-label">⋯ Other options</div>
-        <div class="pill-desc">Host in the Media Gallery (Connect CMS) or other deployment methods.</div>
+        <div class="pill-desc">Or the customer hosts it in their Connect media library (Media Gallery in Connect).</div>
       </div>
     </button>
   </div>
@@ -3990,11 +3992,11 @@ Then show the hosting instructions widget using `mcp__visualize__show_widget` (t
 ```html
 <div style="font-family:var(--font-sans);padding:.75rem 0;max-width:540px">
   <div style="font-size:14px;font-weight:600;color:var(--color-text-primary);margin-bottom:4px">Deploy the Connect SDK Config on your website</div>
-  <div style="font-size:12px;color:var(--color-text-secondary);margin-bottom:16px">Follow these steps to host the customised JavaScript file on your web server.</div>
+  <div style="font-size:12px;color:var(--color-text-secondary);margin-bottom:16px">Follow these steps to host the SDK Config on your own CDN or web server.</div>
   <div style="display:flex;flex-direction:column;gap:12px">
     <div style="display:flex;gap:12px;align-items:flex-start">
       <div style="width:22px;height:22px;border-radius:50%;background:#1F1E5D;color:#C8FF49;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">1</div>
-      <div style="font-size:12px;color:var(--color-text-primary);padding-top:2px">Upload the customised JavaScript file to your web server — for example, to the root directory or a dedicated <code>scripts/</code> directory.</div>
+      <div style="font-size:12px;color:var(--color-text-primary);padding-top:2px">Upload the SDK Config to your own CDN or web server — for example, to the root directory or a dedicated <code>scripts/</code> directory.</div>
     </div>
     <div style="display:flex;gap:12px;align-items:flex-start">
       <div style="width:22px;height:22px;border-radius:50%;background:#1F1E5D;color:#C8FF49;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">2</div>
@@ -4052,8 +4054,8 @@ Show the secondary deployment widget using `mcp__visualize__show_widget` (title:
     <button type="button" class="pill" data-value="acoustic_cms" onclick="sp(this)">
       <span class="chk" aria-hidden="true">✓</span>
       <div>
-        <div class="pill-label">☁ Host it in the Media Gallery (Connect CMS)</div>
-        <div class="pill-desc">Upload the SDK Config to the Media Gallery (Connect CMS). The config is served via the Acoustic CDN — the customer references it using a delivery URL in their GTM tag or page template.</div>
+        <div class="pill-label">☁ Host it in the customer's Connect media library</div>
+        <div class="pill-desc">Upload the SDK Config to the customer's Connect media library (Media Gallery in Connect), in their own subscription. The customer references it with a delivery URL in their GTM tag or page template, and can update it themselves at any time.</div>
       </div>
     </button>
   </div>
@@ -4066,7 +4068,7 @@ function sub(){var v=document.getElementById('f-other').value;if(!v)return;sendP
 </script>
 ```
 
-When `sendPrompt` fires `'Deployment other: acoustic_cms'`: proceed to **Step 10** (CMS upload).
+When `sendPrompt` fires `'Deployment other: acoustic_cms'`: proceed to **Step 10** (media library upload).
 
 ---
 
@@ -4380,7 +4382,7 @@ except Exception as e:
 | `bundleFilename` | Actual output filename from generation |
 | `staticValidationPassed` | `true` only if `validate_profile.py` returned 0 errors |
 | `browserValidationPassed` | `true` only if Step 13 browser verify was completed and confirmed by user |
-| `cmsRequired` | `true` when the user selects the Media Gallery (Connect CMS) upload in Step 10-pre; `false` when they choose direct handover. Never derived from the tier. |
+| `cmsRequired` | `true` when the user selects the customer's Connect media library upload in Step 10-pre; `false` when they choose direct handover. Never derived from the tier. |
 | `cmsAttempted` | `true` if Step 10 upload sequence was started |
 | `cmsUploaded` | `true` only if B-5 GET confirmed `publishStatus: "available"` |
 | `readiness` | Label from Step 14: `not_ready`, `ready_for_staging`, `ready_for_production_review`, or `production_ready` |
@@ -4427,9 +4429,9 @@ After writing (or attempting) the analytics sidecar, show a completion widget us
 - Show `"SDK Config generated"` only if `bundleGenerated = true`
 - Show `"Static validation passed"` only if `staticValidationPassed = true`
 - Show `"Browser verification passed"` only if `browserValidationPassed = true`
-- Show `"Uploaded to the Media Gallery (Connect CMS)"` only if `cmsUploaded = true`
-- Show `"Hosted by the customer — no Media Gallery upload requested"` if `cmsRequired = false`
-- **Never claim CMS upload if `cmsUploaded = false`**
+- Show `"Uploaded to the customer's Connect media library"` only if `cmsUploaded = true`
+- Show `"Hosted by the customer on their own CDN — no Connect media library upload requested"` if `cmsRequired = false`
+- **Never claim a media library upload if `cmsUploaded = false`**
 - **Never claim browser verification if `browserValidationPassed = false`**
 
 **Escalated signals:** If `signalsEscalated` is non-empty, include: `"⚠️ Escalated signals: [list]"`
@@ -4538,7 +4540,7 @@ Signal labels: `identification` → "Identification" · `accountRegistered` → 
       <button class="mpill" data-area="static_validation" onclick="toggleArea(this)">Static validation</button>
       <button class="mpill" data-area="user_validation" onclick="toggleArea(this)">User validation</button>
       <button class="mpill" data-area="browser_verification" onclick="toggleArea(this)">Browser verification</button>
-      <button class="mpill" data-area="cms_upload" onclick="toggleArea(this)">Media Gallery upload</button>
+      <button class="mpill" data-area="cms_upload" onclick="toggleArea(this)">Connect media library upload</button>
       <button class="mpill" data-area="workflow" onclick="toggleArea(this)">Workflow</button>
       <button class="mpill" data-area="user_experience" onclick="toggleArea(this)">User experience</button>
       <button class="mpill" data-area="documentation" onclick="toggleArea(this)">Documentation</button>
@@ -5118,7 +5120,7 @@ After the widget, output the single close line: "Session closed. Run the skill a
 
 #### 14b-D — Session backup
 
-**This is the external (customer-facing) build.** There is no operator CMS to back up to — no org constant, no manifest, no upload endpoints, and none should be added. Do not attempt to derive or guess an upload target from the customer's own `app.goacoustic.com` session.
+**This is the external (customer-facing) build.** There is no operator org to back up to — no org constant, no manifest, no upload endpoints, and none should be added. Do not attempt to derive or guess an upload target from the customer's own `app.goacoustic.com` session.
 
 **No `uploading_feedback` widget** — nothing is being uploaded, so do not claim it is. Skip straight from feedback submit/skip to the close notice below.
 
@@ -5138,7 +5140,7 @@ Substitute `<SLUG>` with the actual profile slug. This is informational text onl
 
 ##### External-mode implementation
 
-There is no operator CMS to back up to in this build — no org constant, no manifest, no upload endpoints. Do not attempt to derive or guess one from the customer's own `app.goacoustic.com` session.
+There is no operator org to back up to in this build — no org constant, no manifest, no upload endpoints. Do not attempt to derive or guess one from the customer's own `app.goacoustic.com` session.
 
 **No `uploading_feedback` widget** — nothing is being uploaded, so do not claim it is. Skip straight from feedback submit/skip to the close notice below.
 
