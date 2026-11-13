@@ -13,7 +13,7 @@ description: Inspect live customer websites with an available browser automation
 > - **SDK** — Acoustic's JavaScript library (`acoconnect.js` / `acoconnect.min.js`, `window.TLT`). It is the same for every customer and knows how to send data to Acoustic. It is owned by Acoustic, and versioned and deployed to the Acoustic CDN by Acoustic P&E. This skill and sdk-config-coding never create, edit, version or deploy it.
 > - **SDK Config** — the customer-specific JavaScript glue code that runs in the browser, maps actions on the customer's website to the SDK's programmatic interface (`initLogSignal`, triggers, `enhance`) and calls the SDK to send them to Acoustic. It is created by Acoustic (typically Professional Services, sometimes implementation or a CSM) or by the customer, and it is owned by the customer, who can delegate its maintenance to Acoustic under a service contract. The customer hosts it: ideally on their own CDN, otherwise in their Connect media library, in their own subscription. They can update it themselves in either case. This is what this skill generates, hand over, fix and prepare for production.
 >
-> Use "SDK Config" for the second, every time — never "the SDK", "SDK bundle", "SDK loader", "SDK files" or "handed-off SDK" for it. Use "SDK" only for Acoustic's library. Existing file names and JSON keys keep their names because other files depend on them (`acoConnectSdkConfig-<domain>.js`, `acoconnect-loader.js`, `handoff/original-sdk.js`, `originalSdkFileName`, `acoustic.sdkBundle`): they all hold or describe the SDK Config, and must be described that way.
+> Use "SDK Config" for the second, every time — never "the SDK", "SDK bundle", "SDK loader", "SDK files" or "handed-off SDK" for it. Use "SDK" only for Acoustic's library. Existing file names and JSON keys keep their names because other files depend on them (`acoConnectSdkConfig-<domain>.js`, `handoff/original-sdk.js`, `originalSdkFileName`, `acoustic.sdkBundle`): they all hold or describe the SDK Config, and must be described that way.
 
 > **Where the SDK Config is hosted — Connect terms (hard rule).** For Connect, the customer hosts the SDK Config: ideally on their own CDN, otherwise in their **Connect media library**, in their own subscription. In both cases the customer can update it themselves; no ticket to Acoustic is needed. Say "the customer hosts the SDK Config on their own CDN or in their Connect media library". Never say "we host the SDK Config in Content", and never call the media library "Content" (or "Acoustic Content" / "Content Hub"): people read that as the Acoustic Content product, hosted by Acoustic and changed only by raising a ticket. **Media Gallery** is the Connect menu item where the customer uploads files to their media library: name it when telling someone where to click ("in Connect, open Media Gallery"), and call the place itself the Connect media library. (Tealeaf SDK Configs were hosted in Acoustic Content; that is Tealeaf only and never applies to Connect.) URLs, API paths and keys keep their names (`/content/api/...`, `connect/Content/content-library`, `cmsRequired`, `cmsUploaded`, `acoustic_cms`, `cms_upload`): describe them in these terms.
 
@@ -5011,14 +5011,14 @@ if choice == 'new' and (sites/host).exists(): out('failed', reason='destination_
 if choice == 'replaced' and not (sites/host).exists(): choice = 'new'
 stage = sites/('.incoming-' + host + '-' + now.strftime('%Y%m%d-%H%M%S'))
 (stage/'handoff').mkdir(parents=True)
-# acoconnect-loader.js is the copy the coding assistant edits. handoff/original-sdk.js is the read-only
+# sdk-config.js is the copy the coding assistant edits. handoff/original-sdk.js is the read-only
 # baseline it compares its edits against when it writes coding-result.json (changeTypes, triggers
 # before -> after), so the two start byte-for-byte identical by design.
-(stage/'acoconnect-loader.js').write_text(js, encoding='utf-8')
+(stage/'sdk-config.js').write_text(js, encoding='utf-8')
 (stage/'handoff'/'original-sdk.js').write_text(js, encoding='utf-8')
 (stage/'handoff'/(cust_slug + '-customer-signal-config.json')).write_text(json.dumps(cfg_copy, indent=2, ensure_ascii=False) + '\n', encoding='utf-8')
 (stage/'handoff'/(cust_slug + '-implementation-review.md')).write_text(review_txt, encoding='utf-8')
-files = [stage/'acoconnect-loader.js', stage/'handoff'/'original-sdk.js', stage/'handoff'/(cust_slug + '-customer-signal-config.json'), stage/'handoff'/(cust_slug + '-implementation-review.md')]
+files = [stage/'sdk-config.js', stage/'handoff'/'original-sdk.js', stage/'handoff'/(cust_slug + '-customer-signal-config.json'), stage/'handoff'/(cust_slug + '-implementation-review.md')]
 if not all(f.is_file() and f.stat().st_size > 0 for f in files): out('failed', reason='verify_failed', staging=stage.name)
 # Read each SDK Config copy back and compare it with the string that was meant to be written, so a short or
 # failed write is caught before the folder is moved into place. Then confirm the loader is in test mode.

@@ -5,7 +5,7 @@
 // @description  Injects the customer's SDK Config (which loads the Acoustic Connect SDK) for development
 // @author       Acoustic
 // @match        https://MATCH_PATTERN
-// @require      file://ABSOLUTE_PROJECT_PATH/sdk-config-coding/HOSTNAME/acoconnect-loader.js
+// @require      file://ABSOLUTE_PROJECT_PATH/sdk-config-coding/HOSTNAME/sdk-config.js
 // @grant        none
 // @noframes
 // ==/UserScript==
