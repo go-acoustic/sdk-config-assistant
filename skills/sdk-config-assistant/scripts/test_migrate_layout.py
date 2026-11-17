@@ -70,8 +70,8 @@ class MigrateLayoutTest(unittest.TestCase):
         os.utime(older, (OLDER_MTIME, OLDER_MTIME))
         os.utime(latest, (1_790_000_000, 1_790_000_000))
         c = self.root / 'SDK-config-coding' / 'sites'
-        _write(c / 'www.acmeretail.com' / 'acoconnect-loader.js', '// loader')
-        _write(c / 'www.acmeretail.com.bak-20260901-101010' / 'acoconnect-loader.js', '// bak')
+        _write(c / 'www.acmeretail.com' / 'sdk-config.js', '// loader')
+        _write(c / 'www.acmeretail.com.bak-20260901-101010' / 'sdk-config.js', '// bak')
 
     def test_empty_folder_is_left_alone(self):
         res = self.run_it()
@@ -98,7 +98,7 @@ class MigrateLayoutTest(unittest.TestCase):
         self.assertEqual([i['reason'] for i in res['left']], ['host_unknown'])
 
         c = self.root / 'sdk-config-coding'
-        self.assertEqual((c / 'www.acmeretail.com' / 'acoconnect-loader.js').read_text(), '// loader')
+        self.assertEqual((c / 'www.acmeretail.com' / 'sdk-config.js').read_text(), '// loader')
         self.assertTrue((c / 'www.acmeretail.com.bak-20260901-101010').is_dir())
         self.assertNotIn('sites', ml.names(c))
 
@@ -124,10 +124,10 @@ class MigrateLayoutTest(unittest.TestCase):
         self.assertEqual(dry['profilesUpdated'], real['profilesUpdated'])
 
     def test_existing_destination_is_never_overwritten(self):
-        _write(self.root / 'sdk-config-coding' / 'www.acmeretail.com' / 'acoconnect-loader.js', '// keep')
-        _write(self.root / 'sdk-config-coding' / 'sites' / 'www.acmeretail.com' / 'acoconnect-loader.js', '// other')
+        _write(self.root / 'sdk-config-coding' / 'www.acmeretail.com' / 'sdk-config.js', '// keep')
+        _write(self.root / 'sdk-config-coding' / 'sites' / 'www.acmeretail.com' / 'sdk-config.js', '// other')
         res = self.run_it()
-        self.assertEqual((self.root / 'sdk-config-coding' / 'www.acmeretail.com' / 'acoconnect-loader.js').read_text(), '// keep')
+        self.assertEqual((self.root / 'sdk-config-coding' / 'www.acmeretail.com' / 'sdk-config.js').read_text(), '// keep')
         self.assertEqual([i['reason'] for i in res['left']], ['destination_exists'])
         self.assertTrue((self.root / 'sdk-config-coding' / 'sites' / 'MIGRATED.txt').is_file())
 
@@ -140,13 +140,13 @@ class MigrateLayoutTest(unittest.TestCase):
         self.assertNotIn('outputs', ml.names(self.root / 'sdk-config-assistant'))
 
     def test_coding_assistant_old_name(self):
-        _write(self.root / 'SDK-coding-assistant' / 'sites' / 'shop.example.com' / 'acoconnect-loader.js')
+        _write(self.root / 'SDK-coding-assistant' / 'sites' / 'shop.example.com' / 'sdk-config.js')
         self.run_it()
-        self.assertTrue((self.root / 'sdk-config-coding' / 'shop.example.com' / 'acoconnect-loader.js').is_file())
+        self.assertTrue((self.root / 'sdk-config-coding' / 'shop.example.com' / 'sdk-config.js').is_file())
         self.assertNotIn('SDK-coding-assistant', ml.names(self.root))
 
     def test_root_sites_move_only_when_asked(self):
-        _write(self.root / 'sites' / 'shop.example.com' / 'acoconnect-loader.js')
+        _write(self.root / 'sites' / 'shop.example.com' / 'sdk-config.js')
         res = self.run_it()
         self.assertTrue(res['rootSites'])
         self.assertTrue((self.root / 'sites' / 'shop.example.com').is_dir())
@@ -156,7 +156,7 @@ class MigrateLayoutTest(unittest.TestCase):
 
     def test_opened_inside_the_old_coding_folder(self):
         inner = self.root / 'SDK-config-coding'
-        _write(inner / 'sites' / 'shop.example.com' / 'acoconnect-loader.js')
+        _write(inner / 'sites' / 'shop.example.com' / 'sdk-config.js')
         res = ml.Migration(inner).run()
         self.assertEqual(res['status'], 'wrong_root')
         self.assertEqual(res['openIn'], str(self.root))

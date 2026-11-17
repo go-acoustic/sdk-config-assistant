@@ -5,7 +5,7 @@ A Claude Code skill that helps you build and test Acoustic Connect behavioral si
 ## Prerequisites
 
 - Claude Code on your Claude account. Cowork access alone isn't enough: if Claude Desktop shows no **Code** tab, or you can't start a local session there, ask your Claude admin for Claude Code access. The skill runs in any local Claude Code session — see [Where to run it](#where-to-run-it). It doesn't run in Claude Cowork; there, use [sdk-config-assistant](../sdk-config-assistant) instead.
-- A configured SDK Config (`acoconnect-loader.js`) for your site, with the correct `appKey`, endpoint URL, and `initLogSignal` function present. The skill assumes you will be building the signal code within this framework.
+- A configured SDK Config (`sdk-config.js`) for your site, with the correct `appKey`, endpoint URL, and `initLogSignal` function present. The skill assumes you will be building the signal code within this framework.
 - Google Chrome (macOS).
 
 ## Install
@@ -28,7 +28,7 @@ Signal work happens in your own project directory (the folder that holds, or wil
 
 All three need Claude Code on your Claude account and run on your own machine. The skill stops in Claude Cowork, in a cloud session (it needs your local Chrome) and in a temporary git worktree (the Tampermonkey script loads the loader from your project's absolute path, so it must be the real folder). You don't need the `claude` command installed to use it from Claude Desktop: setup falls back to registering the Chrome DevTools MCP directly in `~/.claude.json`.
 
-No setup is required before working on a site — Claude reads your `sdk-config-coding/<hostname>/acoconnect-loader.js` directly and starts implementing signals.
+No setup is required before working on a site — Claude reads your `sdk-config-coding/<hostname>/sdk-config.js` directly and starts implementing signals.
 
 **Guided first-run setup.** The first time you work on a site on a machine, Claude offers a one-time walkthrough of the browser tooling below:
 - choosing a dedicated Chrome profile or your default one
@@ -39,7 +39,7 @@ No setup is required before working on a site — Claude reads your `sdk-config-
 
 It detects anything already done and lets you **skip** it, and remembers your choices in `~/.claude/sdk-config-coding/`, so it only asks once. You can run it any time with `/sdk-config-assistant:sdk-config-coding setup`, or follow the manual steps below instead.
 
-**Optional: linting.** If you'd like ESLint checking of your `acoconnect-loader.js` files, just ask Claude to set it up — it will copy over a `package.json` and `eslint.config.mjs` and walk you through running `npm install`. This is entirely optional and off by default; the skill doesn't require or assume any particular code style.
+**Optional: linting.** If you'd like ESLint checking of your `sdk-config.js` files, just ask Claude to set it up — it will copy over a `package.json` and `eslint.config.mjs` and walk you through running `npm install`. This is entirely optional and off by default; the skill doesn't require or assume any particular code style.
 
 ### Choose a Chrome profile (one-time, per machine)
 
@@ -102,20 +102,22 @@ With Chrome running on the profile you chose (setup detects an existing install 
 
 1. Open the [Tampermonkey page on the Chrome Web Store](https://chrome.google.com/webstore/detail/tampermonkey/dhdgffkkebhmkfjojejmpbldmpobfkfo) and click **Add to Chrome**.
 2. After installation, go to `chrome://extensions` → Tampermonkey → **Details**.
-3. Enable **"Allow access to file URLs"** — this is required so Tampermonkey can load your local `acoconnect-loader.js` files directly from disk.
+3. Enable **"Allow access to file URLs"** — this is required so Tampermonkey can load your local `sdk-config.js` files directly from disk.
 
 The per-site userscripts only match the customer hostnames you work on, so with Option B the rest of your browsing is unaffected.
 
 ### Add your site
 
-Copy your configured `acoconnect-loader.js` into `sdk-config-coding/<hostname>/`:
+Copy your configured SDK Config into `sdk-config-coding/<hostname>/` as `sdk-config.js`:
 
 ```zsh
 mkdir -p sdk-config-coding/<hostname>
-cp /path/to/your/acoconnect-loader.js sdk-config-coding/<hostname>/
+cp /path/to/your/sdk-config-file.js sdk-config-coding/<hostname>/sdk-config.js
 ```
 
 A project from an earlier version keeps its sites in `sites/<hostname>/`. Claude spots that the first time you work on a site and offers to move them; nothing is deleted or overwritten.
+
+**Upgrading from plugin 1.4.x or earlier:** the working file was called `acoconnect-loader.js`. Rename it to `sdk-config.js` in each site folder (keep any suffix: `acoconnect-loader-20261109.js` becomes `sdk-config-20261109.js`). Then change the file name in the `@require` line of each site's Tampermonkey script in the Tampermonkey dashboard. The skill doesn't look for the old name.
 
 Use a new or recent SDK Config that uses the `initLogSignal` function to implement signals. You can also ask Claude Code to set up the directories for you rather than doing it from the terminal.
 
@@ -123,7 +125,7 @@ Then tell Claude which site to work on. It will read the loader, show you an imp
 
 ### Continuing from sdk-config-assistant
 
-The `SDK-config-assistant` skill (Claude Cowork, same plugin) generates an SDK Config by inspecting the site. It tests each signal up to three times and escalates any that still fail. At the end of its session it shows a **Use coding assistant** button next to Close session. If you choose it and confirm, it copies the SDK Config into `sdk-config-coding/<hostname>/` inside the folder you added to Cowork. It renames the SDK Config to `acoconnect-loader.js` and puts its report, its signal config and `original-sdk.js` (the loader exactly as handed off) under `handoff/`. Signals it could not build at all (for example a sign-in on another host) are listed in the signal config's `blockers[]` and handed over too.
+The `SDK-config-assistant` skill (Claude Cowork, same plugin) generates an SDK Config by inspecting the site. It tests each signal up to three times and escalates any that still fail. At the end of its session it shows a **Use coding assistant** button next to Close session. If you choose it and confirm, it copies the SDK Config into `sdk-config-coding/<hostname>/` inside the folder you added to Cowork. It renames the SDK Config to `sdk-config.js` and puts its report, its signal config and `original-sdk.js` (the loader exactly as handed off) under `handoff/`. Signals it could not build at all (for example a sign-in on another host) are listed in the signal config's `blockers[]` and handed over too.
 
 To continue, open the folder that holds `sdk-config-coding/` in Claude Code — a local session in Claude Desktop's **Code** tab, VS Code, or `claude` in a terminal (see [Where to run it](#where-to-run-it)) — and say "let's work on <hostname>". sdk-config-assistant asks which of these you'll use and shows the matching steps when it hands off. The first time, Claude reads the handoff files and writes `notes.md` with the status of each signal, what was already tried for the escalated ones, and the open questions. It then lists the escalated signals first.
 

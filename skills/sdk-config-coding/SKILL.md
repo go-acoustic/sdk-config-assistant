@@ -1,12 +1,12 @@
 ---
 name: sdk-config-coding
-description: Claude Code only (Desktop Code tab, terminal or IDE), never Claude Cowork. Hand-edit, debug and test the JavaScript enhance functions and triggers in an existing sdk-config-coding/<hostname>/acoconnect-loader.js, live through Tampermonkey and the sdk-chrome-devtools MCP; continue an SDK Config handed off from SDK-config-assistant (a handoff/ folder or escalated signals); or prepare that SDK Config for production (fakeSignals, readiness). Also sets up, repairs or switches this skill's own browser tooling (dedicated or default Chrome profile, the sdk-chrome-devtools MCP, Tampermonkey) when asked or when its setup check needs it. Not for requests that start from a customer website or domain — generating, auditing, mapping or updating a signal configuration or initLogSignal(), onboarding a customer, mapping JSON, implementation or test plans — nor for installing Tampermonkey to test an SDK-config-assistant output. Those belong to SDK-config-assistant, even when initLogSignal or signal names are mentioned.
+description: Claude Code only (Desktop Code tab, terminal or IDE), never Claude Cowork. Hand-edit, debug and test the JavaScript enhance functions and triggers in an existing sdk-config-coding/<hostname>/sdk-config.js, live through Tampermonkey and the sdk-chrome-devtools MCP; continue an SDK Config handed off from SDK-config-assistant (a handoff/ folder or escalated signals); or prepare that SDK Config for production (fakeSignals, readiness). Also sets up, repairs or switches this skill's own browser tooling (dedicated or default Chrome profile, the sdk-chrome-devtools MCP, Tampermonkey) when asked or when its setup check needs it. Not for requests that start from a customer website or domain — generating, auditing, mapping or updating a signal configuration or initLogSignal(), onboarding a customer, mapping JSON, implementation or test plans — nor for installing Tampermonkey to test an SDK-config-assistant output. Those belong to SDK-config-assistant, even when initLogSignal or signal names are mentioned.
 argument-hint: "[setup]"
 ---
 
 # SDK Config Coding
 
-This skill implements behavioural signals in a customer's **SDK Config** (`acoconnect-loader.js`): the customer-specific code that loads the Acoustic Connect **SDK** and calls it. The SDK Config is provided by the user and owned by them outside of `initLogSignal`; the SDK itself is Acoustic's and is never changed here. Your scope is limited to signal implementation inside `initLogSignal`.
+This skill implements behavioural signals in a customer's **SDK Config** (`sdk-config.js`): the customer-specific code that loads the Acoustic Connect **SDK** and calls it. The SDK Config is provided by the user and owned by them outside of `initLogSignal`; the SDK itself is Acoustic's and is never changed here. Your scope is limited to signal implementation inside `initLogSignal`.
 
 ## SDK vs SDK Config — never confuse them (hard rule)
 
@@ -15,7 +15,7 @@ This skill implements behavioural signals in a customer's **SDK Config** (`acoco
 > - **SDK** — Acoustic's JavaScript library (`acoconnect.js` / `acoconnect.min.js`, `window.TLT`). It is the same for every customer and knows how to send data to Acoustic. It is owned by Acoustic, and versioned and deployed to the Acoustic CDN by Acoustic P&E. These skills never create, edit, version or deploy it.
 > - **SDK Config** — the customer-specific JavaScript glue code that runs in the browser, maps actions on the customer's website to the SDK's programmatic interface (`initLogSignal`, triggers, `enhance`) and calls the SDK to send them to Acoustic. It is created by Acoustic (typically Professional Services, sometimes implementation or a CSM) or by the customer, and it is owned by the customer, who can delegate its maintenance to Acoustic under a service contract. The customer hosts it: ideally on their own CDN, otherwise in their Connect media library, in their own subscription. They can update it themselves in either case. This is what these skills generate, hand over, fix and prepare for production.
 >
-> Use "SDK Config" for the second, every time — never "the SDK", "SDK bundle", "SDK loader", "SDK files" or "handed-off SDK" for it. Use "SDK" only for Acoustic's library. Existing file names and JSON keys keep their names because other files depend on them (`acoConnectSdkConfig-<domain>.js`, `acoconnect-loader.js`, `handoff/original-sdk.js`, `originalSdkFileName`, `acoustic.sdkBundle`): they all hold or describe the SDK Config, and must be described that way.
+> Use "SDK Config" for the second, every time — never "the SDK", "SDK bundle", "SDK loader", "SDK files" or "handed-off SDK" for it. Use "SDK" only for Acoustic's library. Existing file names and JSON keys keep their names because other files depend on them (`acoConnectSdkConfig-<domain>.js`, `handoff/original-sdk.js`, `originalSdkFileName`, `acoustic.sdkBundle`): they all hold or describe the SDK Config, and must be described that way.
 
 > **Where the SDK Config is hosted — Connect terms (hard rule).** For Connect, the customer hosts the SDK Config: ideally on their own CDN, otherwise in their **Connect media library**, in their own subscription. In both cases the customer can update it themselves; no ticket to Acoustic is needed. Say "the customer hosts the SDK Config on their own CDN or in their Connect media library". Never say "we host the SDK Config in Content", and never call the media library "Content" (or "Acoustic Content" / "Content Hub"): people read that as the Acoustic Content product, hosted by Acoustic and changed only by raising a ticket. **Media Gallery** is the Connect menu item where the customer uploads files to their media library: name it when telling someone where to click ("in Connect, open Media Gallery"), and call the place itself the Connect media library. (Tealeaf SDK Configs were hosted in Acoustic Content; that is Tealeaf only and never applies to Connect.) URLs, API paths and keys keep their names (`/content/api/...`, `connect/Content/content-library`, `cmsRequired`, `cmsUploaded`, `acoustic_cms`, `cms_upload`): describe them in these terms.
 
@@ -91,7 +91,7 @@ mode — that belongs to `SDK-config-assistant`'s own test guide.
 <project root>/              (the folder that also holds sdk-config-assistant/ when sites come from a handoff)
 └── sdk-config-coding/
     └── <site-hostname>/
-        ├── acoconnect-loader.js   (the deployable artefact, provided by the user)
+        ├── sdk-config.js   (the deployable artefact, provided by the user)
         ├── notes.md               (site-specific notes, selectors, data layer events)
         ├── handoff/               (only for sites handed off from sdk-config-assistant — read-only)
         │   ├── <customer-slug>-implementation-review.md
@@ -101,7 +101,7 @@ mode — that belongs to `SDK-config-assistant`'s own test guide.
         └── *.js                   (Playwright utility scripts, if any)
 ```
 
-Each site's `acoconnect-loader.js` is a self-contained, deployable IIFE. No build step, and no project setup is required before working on a site — see "Linting" below for the one optional, opt-in exception.
+Each site's `sdk-config.js` is a self-contained, deployable IIFE. No build step, and no project setup is required before working on a site — see "Linting" below for the one optional, opt-in exception.
 
 A site arrives in one of two ways: the user copies in their own loader, or the `sdk-config-assistant` skill (Cowork) hands it off by writing the folder above, `handoff/` included. Either way the workflow below is the same; a handed-off site just gets its `notes.md` and status summary seeded from `handoff/` on first open — see "Sites handed off from sdk-config-assistant".
 
@@ -161,7 +161,7 @@ python3 "${CLAUDE_PLUGIN_ROOT}/skills/sdk-config-coding/scripts/migrate_layout.p
 
 When the user says "let's work on" or "let's continue" a site, or asks to start/continue implementation:
 
-1. Read `sdk-config-coding/<hostname>/acoconnect-loader.js` and `notes.md`. If `sdk-config-coding/<hostname>/handoff/` exists and there is no `notes.md` yet, this is the first open of a handed-off site — run "First open of a handed-off site" below before continuing.
+1. Read `sdk-config-coding/<hostname>/sdk-config.js` and `notes.md`. If `sdk-config-coding/<hostname>/handoff/` exists and there is no `notes.md` yet, this is the first open of a handed-off site — run "First open of a handed-off site" below before continuing.
 2. **Show an implementation status summary** — list every signal in `cfg.signals` with a status:
    - ✅ implemented (has a non-empty `enhance` function and at least one trigger)
    - ⏭️ skipped (no trigger expected — e.g. `accountRegistered` with no known confirmation page)
@@ -169,12 +169,12 @@ When the user says "let's work on" or "let's continue" a site, or asks to start/
 
    Omit the `audience` utility signal (see "Signal names in handed-off SDK Configs"). For a handed-off site, list the handed-over signals first (those `notes.md` records as escalated or blocked at handoff, including signals from `blockers[]` that were never built), marked 🔺 handed over, with their reason codes or blocker summary — these are usually why the site was handed off. A handed-over signal whose `enhance` and triggers are now filled in is ✅ like any other.
 3. **Ask about SDK Config injection** — for an ongoing implementation, ask: "Does the Tampermonkey script need to be set up, or is it already installed?" For a new site, offer to walk through setup. Then follow the session start steps below.
-4. All edits target `sdk-config-coding/<hostname>/acoconnect-loader.js`, within `initLogSignal` only.
-5. If the project already has ESLint set up (an `eslint.config.mjs` exists at the project root — see "Linting" below), lint after every edit: `npx eslint sdk-config-coding/<hostname>/acoconnect-loader.js --fix`. If it doesn't, skip linting — don't mention it unless the user asks.
+4. All edits target `sdk-config-coding/<hostname>/sdk-config.js`, within `initLogSignal` only.
+5. If the project already has ESLint set up (an `eslint.config.mjs` exists at the project root — see "Linting" below), lint after every edit: `npx eslint sdk-config-coding/<hostname>/sdk-config.js --fix`. If it doesn't, skip linting — don't mention it unless the user asks.
 
 ## Sites handed off from sdk-config-assistant
 
-`sdk-config-assistant` (a Cowork skill in the `sdk-config-assistant` plugin) inspects a site and generates an SDK Config, testing each signal up to three times (two correction attempts); signals still failing after that are **escalated**. An escalated signal is not removed from the SDK Config: it keeps the triggers and `enhance` from its last correction attempt, which did not pass validation. Treat that code as not working, not as a starting point that is known to be close. At the end of its session the user can choose **Use coding assistant**; the skill then copies the SDK Config to `sdk-config-coding/<hostname>/acoconnect-loader.js` (renamed from `acoConnectSdkConfig-<domain-slug>.js`) with its report, its signal config JSON and `original-sdk.js` (the SDK Config exactly as handed off; the file name is historical) under `handoff/`.
+`sdk-config-assistant` (a Cowork skill in the `sdk-config-assistant` plugin) inspects a site and generates an SDK Config, testing each signal up to three times (two correction attempts); signals still failing after that are **escalated**. An escalated signal is not removed from the SDK Config: it keeps the triggers and `enhance` from its last correction attempt, which did not pass validation. Treat that code as not working, not as a starting point that is known to be close. At the end of its session the user can choose **Use coding assistant**; the skill then copies the SDK Config to `sdk-config-coding/<hostname>/sdk-config.js` (renamed from `acoConnectSdkConfig-<domain-slug>.js`) with its report, its signal config JSON and `original-sdk.js` (the SDK Config exactly as handed off; the file name is historical) under `handoff/`.
 
 **Mode at handoff.** `sdk-config-assistant` may already have switched its own copy to production. Before handing off, it sets these four flags in the handed-off loader only: `fakeSignals: true`, `errorLog: true`, `eventLog: false`, `signalsLog: true`. So a handed-off loader always arrives in test mode. If you find `fakeSignals: false` in a freshly handed-off loader, tell the user before loading it in the browser, because it would send real data to Connect.
 
@@ -239,8 +239,8 @@ The generator also injects an **`audience` utility signal** into `cfg.signals` w
 ## Starting a new site
 
 1. Check whether `sdk-config-coding/<hostname>/` already exists.
-   - **If it does** — read `acoconnect-loader.js` and `notes.md` and proceed directly to signal implementation. If it has a `handoff/` folder but no `notes.md`, run "First open of a handed-off site" first.
-   - **If it does not** — create the directory and a stub `notes.md`, then ask the user to copy their configured `acoconnect-loader.js` into it before continuing. The user is responsible for providing the loader with the correct `appKey`, endpoint URL, and any other SDK Config settings — do not ask for or look up these values.
+   - **If it does** — read `sdk-config.js` and `notes.md` and proceed directly to signal implementation. If it has a `handoff/` folder but no `notes.md`, run "First open of a handed-off site" first.
+   - **If it does not** — create the directory and a stub `notes.md`, then ask the user to copy their configured `sdk-config.js` into it before continuing. The user is responsible for providing the loader with the correct `appKey`, endpoint URL, and any other SDK Config settings — do not ask for or look up these values.
 2. Once the loader is present, read it to confirm `initLogSignal` exists and to identify the SDK version the SDK Config loads (for the Tampermonkey script).
 3. Begin implementing signals per the workflow below.
 
@@ -353,13 +353,13 @@ The pinned `eslint`/`eslint-config-airbnb-base` versions have a known peer-depen
 Once set up, ESLint uses airbnb-base style with project-specific overrides (4-space indent, double quotes, no max-len). `TLT`, `dataLayer`, and other SDK globals are pre-declared. Use `let`/`const` in `enhance` functions — not `var`. From then on, lint after every edit per "Working on a site" step 5 above:
 
 ```bash
-npx eslint sdk-config-coding/<hostname>/acoconnect-loader.js --fix
-npx eslint sdk-config-coding/<hostname>/acoconnect-loader.js  # re-run to review any remaining issues
+npx eslint sdk-config-coding/<hostname>/sdk-config.js --fix
+npx eslint sdk-config-coding/<hostname>/sdk-config.js  # re-run to review any remaining issues
 ```
 
 ## Architecture
 
-The user's project produces a single JavaScript file (`acoconnect-loader.js`) per customer site, deployed as a tag on the site. This file is the **SDK Config**: it loads and configures the Acoustic Connect SDK and implements behavioural signals.
+The user's project produces a single JavaScript file (`sdk-config.js`) per customer site, deployed as a tag on the site. This file is the **SDK Config**: it loads and configures the Acoustic Connect SDK and implements behavioural signals.
 
 The loader is provided by the user and owned by them outside of `initLogSignal`. Your scope is limited to signal implementation inside `initLogSignal`. The only structural requirement is that `initLogSignal` is present — read the file before starting to confirm this and to understand any site-specific structure.
 
@@ -482,10 +482,49 @@ The following signals all contain product detail fields (`productId`, `productNa
 
 **The values for these fields MUST match exactly across all signals for the same product.** Mismatches prevent cross-signal analysis (e.g. correlating product interest with purchases). Always derive product fields from the same data source — typically the JSON-LD `Product` node stored in sessionStorage by `productView`. Never use a fallback data source (e.g. DOM scraping, URL) for product fields in a downstream signal if the upstream signal used JSON-LD, as the values may differ.
 
+### Adding a signal the loader doesn't have
+
+A loader only has entries for the signals it was generated with, so a newer signal type, such as `accountUpdated`, may be missing from `cfg.signals`. Adding one changes `initLogSignal()` outside `enhance` and `triggers`, so show the user the block and ask before adding it. Add it next to the related signals, and keep the payload template exactly as below:
+
+```js
+accountUpdated: {
+    signal: {
+        signalType: "accountUpdated",
+        updateType: null, // Text, Required
+        updateSource: null, // Text, Optional
+        updateMethod: null, // Text, Optional
+        identifierChanged: null, // Boolean, Optional
+        confirmationRequired: null, // Boolean, Optional
+        reason: null, // Text, Optional
+        ssoProvider: null, // Text, Optional
+        mfaEnabled: null, // Boolean, Optional
+        effect: "positive", // Enum ("negative"|"positive"), Required
+        audience: {}, // Object, Optional
+        consent: {}, // Object, Optional
+        signalCustomAttributes: [] // Array of objects, Optional
+    },
+    triggers: [],
+    enhance: function (signal, help) {
+    }
+},
+```
+
+If the loader has a `requiredFields` map, which `validateSignal` uses to hold back signals with empty required fields, add `accountUpdated: ["updateType"],` to it in the same change. Without that line, the signal is sent even when `updateType` is empty. If the loader has no `requiredFields` map, don't add one.
+
 ### Signal-specific notes
 
-- **`loggedIn`** — must fire only when the user actively logs in, not on every page load while a session is active. Trigger on the login confirmation event or page, not on a general "user is logged in" state. The `audience` object is often first populated here — check for the email address in the login form field, but also look for it in a window object (e.g. `window.user`, `window.digitalData`) or a cookie, as sites vary. Use `help.store("audience", { ... })` to persist whatever is found so all subsequent signals can attach it via `help.retrieve("audience")`.
+- **`loggedIn`** — fires in exactly two situations, never on every page load while a session is active:
+  1. **The user actively logs in.** Trigger on the login confirmation event or page.
+  2. **The user is already logged in when a session starts**, e.g. restored from a cookie, without going through the login action. Detect the logged-in state on the first page load of the session and fire then. `loginMethod` is still required, so ask the user which value to use for this case.
+
+  Both cases call `help.store("loggedInSent", true)` when the signal is sent. Only case 2 checks the flag: it returns `false` while `help.retrieve("loggedInSent")` is set, so a page load after an active login doesn't fire it again. Case 1 never checks the flag, because every real login should be sent, including logging out and back in within the same tab. Make sure the login confirmation page doesn't trigger both cases. `help.store` uses sessionStorage, which belongs to one tab, so a new tab counts as a new session for case 2. Tell the user if that matters for the site. The `audience` object is often first populated here — check for the email address in the login form field, but also look for it in a window object (e.g. `window.user`, `window.digitalData`) or a cookie, as sites vary. Use `help.store("audience", { ... })` to persist whatever is found so all subsequent signals can attach it via `help.retrieve("audience")`.
 - **`accountRegistered`** — must fire only on the registration confirmation event or page, not whenever a registered user is detected. Include `audience` if user identity is available at that point.
+- **`accountUpdated`** — fires when a user changes their account details: a password change or reset, address, payment methods, contact details, preferences, MFA settings, or deleting the account. It also covers a CSR making the change on the user's behalf. Fire only when the site confirms the change was saved, not when an account or settings page loads or a form is opened. Older loaders have no entry for it; see "Adding a signal the loader doesn't have" above.
+  - `updateType` (required) is free text, not an enum. Use the documented examples where they fit (`profile`, `contactDetails`, `address`, `preferences`, `delete`, `password-changed`). For any other kind of change, such as payment methods, ask the user which value to use, and use the same value everywhere on the site.
+  - `updateSource`, `updateMethod`, `reason` and `ssoProvider` are optional free text. Documented examples: `updateSource` is the area the change came from (`profile-information`, `csr`, `preference-center`, `security-center`); `updateMethod` is how it was made (`self`, `phone`, `chat`).
+  - `identifierChanged` is `true` when the email or phone number that identifies the user changed. When it is, call `help.store("audience", { ... })` with the new value too, so later signals don't keep sending the old one.
+  - `confirmationRequired` is `true` when the site asks the user to confirm the change, e.g. with a verification email or code. `mfaEnabled` is the MFA state after the update.
+  - `effect` is always `"positive"`, including for deletions.
 - **`pageView.pageGroup`** — leave as `null` initially; do not attempt to populate it until the customer has indicated what they want there.
 - **`productConfiguration`** — suppress the signal if `product.itemCount > 1`; with multiple products on the page there is no reliable way to know which product the user is configuring.
 - **`addToCart`** — use the `add_to_cart` dataLayer event as the preferred data source. The `ecommerce.currency` field is at the top level of the event, not inside `items`.
@@ -518,7 +557,7 @@ Run this when the user asks to finish, go live, or prepare the SDK Config for de
 
    Only change flags that exist in this loader. If one is missing, say so — don't add it. `fakeSignals: false` means signals are sent to Connect as real data, so confirm the user wants that and is not testing against a production account by accident.
 3. **Re-verify after the flag change.** Reload a page, confirm via `list_console_messages` that the SDK still initialises with no errors, and check one signal end to end.
-4. **Deployment file name.** If `notes.md` records an original SDK Config file name from a handoff, remind the user that the deployed file should normally use that name, not `acoconnect-loader.js`.
+4. **Deployment file name.** If `notes.md` records an original SDK Config file name from a handoff, remind the user that the deployed file should normally use that name, not `sdk-config.js`.
 5. **Readiness label.** Give exactly one of these, and record it with the date in `notes.md`. Use the same labels as `sdk-config-assistant` so the two skills' reports read consistently:
    - `Not ready` — a required signal or field is unresolved, or the SDK fails to initialise.
    - `Ready for staging` — code complete, but some signals have not been verified in the browser in this project.
@@ -564,7 +603,7 @@ This is the only thing that goes back to `sdk-config-assistant`, and that skill 
 
 How to fill it:
 
-1. **Baseline.** Compare `acoconnect-loader.js` against `handoff/original-sdk.js`, signal by signal inside `initLogSignal` (each signal's triggers and `enhance`). If `original-sdk.js` is missing (older handoffs), set `baseline` to `"none"`, and take `statusAtHandoff` from `notes.md` and `changeTypes` from what you did in this project. Don't guess.
+1. **Baseline.** Compare `sdk-config.js` against `handoff/original-sdk.js`, signal by signal inside `initLogSignal` (each signal's triggers and `enhance`). If `original-sdk.js` is missing (older handoffs), set `baseline` to `"none"`, and take `statusAtHandoff` from `notes.md` and `changeTypes` from what you did in this project. Don't guess.
 2. **Signal keys.** Use the sdk-config-assistant profile keys, so `loggedIn` is written as `identification`. Leave out the `audience` utility signal unless you changed it.
 3. **Which signals.** Include every signal whose code changed, plus every handed-over signal (escalated or blocked at handoff, including `blockers[]` signals that were never built), even if it's unchanged. Use `statusAtHandoff: "blocked"` for a `blockers[]` signal with no `signalStatus` entry.
 4. **Allowed values:**
@@ -573,7 +612,7 @@ How to fill it:
    - `changeTypes`: any of `trigger`, `enhance`, `customCode` (anything beyond built-in `help.*` functions), `removed`. Use an empty list when nothing changed.
    - `readiness`: the label from step 5, exactly as written there.
    - `productionFlagsSet`: `true` only if step 2 set production flags and step 3 re-verified them.
-   - `triggers` (optional, include whenever triggers changed): `before` is the signal's `triggers[].attributes` in `handoff/original-sdk.js`, `after` is the same in `acoconnect-loader.js`. Copy the attribute keys and values as written; write a regex value as its source text (for example `"/^add/i"`). Leave it out when the triggers are unchanged.
+   - `triggers` (optional, include whenever triggers changed): `before` is the signal's `triggers[].attributes` in `handoff/original-sdk.js`, `after` is the same in `sdk-config.js`. Copy the attribute keys and values as written; write a regex value as its source text (for example `"/^add/i"`). Leave it out when the triggers are unchanged.
 5. **Content rules.**
    - `summary` and `reason` are one sentence each, 200 characters at most.
    - `reason` says why the original approach failed and why the new one works. That's the part sdk-config-assistant learns from. If the reason isn't known, write `"not stated"`.

@@ -338,7 +338,7 @@ they declined.
 
 ## Step 4 — Install & configure Tampermonkey (per-machine)
 
-Tampermonkey injects each site's `acoconnect-loader.js`. It can't be detected via CDP, but
+Tampermonkey injects each site's `sdk-config.js`. It can't be detected via CDP, but
 its install folder can be checked on disk (extension ID `dhdgffkkebhmkfjojejmpbldmpobfkfo`)
 in the profile chosen in Step 1:
 
@@ -364,7 +364,7 @@ browses in — mention which folder matched and confirm with them.
      click in the browser — it can't be automated).
   3. Have them open `chrome://extensions` → Tampermonkey → **Details** and enable
      **"Allow access to file URLs"** (required so Tampermonkey can load local
-     `acoconnect-loader.js` files via `file://` `@require`).
+     `sdk-config.js` files via `file://` `@require`).
   4. Confirm with the user that it's installed and the toggle is on.
 
 In default mode, reassure the user that the per-site userscripts only `@match` the
