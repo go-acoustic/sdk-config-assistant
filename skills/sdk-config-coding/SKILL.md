@@ -484,7 +484,7 @@ The following signals all contain product detail fields (`productId`, `productNa
 
 ### Adding a signal the loader doesn't have
 
-A loader only has entries for the signals it was generated with, so a newer signal type, such as `accountUpdated`, may be missing from `cfg.signals`. Adding one changes `initLogSignal()` outside `enhance` and `triggers`, so show the user the block and ask before adding it. Add it next to the related signals, and keep the payload template exactly as below:
+A loader only has entries for the signals it was generated with, so a newer signal type, such as `accountUpdated` or `formCompleted`, may be missing from `cfg.signals`. Adding one changes `initLogSignal()` outside `enhance` and `triggers`, so show the user the block and ask before adding it. Add it next to the related signals, and keep the payload template exactly as below:
 
 ```js
 accountUpdated: {
@@ -507,9 +507,26 @@ accountUpdated: {
     enhance: function (signal, help) {
     }
 },
+formCompleted: {
+    signal: {
+        signalType: "formCompleted",
+        formId: null, // Text, Required
+        formProvider: null, // Text, Required
+        formName: null, // Text, Optional
+        formUrl: null, // Text, Optional
+        submissionId: null, // Text, Optional
+        effect: "positive", // Enum ("negative"|"positive"), Required
+        audience: {}, // Object, Optional
+        consent: {}, // Object, Optional
+        signalCustomAttributes: [] // Array of objects, Optional
+    },
+    triggers: [],
+    enhance: function (signal, help) {
+    }
+},
 ```
 
-If the loader has a `requiredFields` map, which `validateSignal` uses to hold back signals with empty required fields, add `accountUpdated: ["updateType"],` to it in the same change. Without that line, the signal is sent even when `updateType` is empty. If the loader has no `requiredFields` map, don't add one.
+If the loader has a `requiredFields` map, which `validateSignal` uses to hold back signals with empty required fields, add the signal's line to it in the same change: `accountUpdated: ["updateType"],` or `formCompleted: ["formId", "formProvider"],`. Without that line, the signal is sent even when a required field is empty. If the loader has no `requiredFields` map, don't add one.
 
 ### Signal-specific notes
 
@@ -525,6 +542,15 @@ If the loader has a `requiredFields` map, which `validateSignal` uses to hold ba
   - `identifierChanged` is `true` when the email or phone number that identifies the user changed. When it is, call `help.store("audience", { ... })` with the new value too, so later signals don't keep sending the old one.
   - `confirmationRequired` is `true` when the site asks the user to confirm the change, e.g. with a verification email or code. `mfaEnabled` is the MFA state after the update.
   - `effect` is always `"positive"`, including for deletions.
+- **`formCompleted`** — fires when a user successfully submits a form that no other signal covers, such as contact us, newsletter sign-up, callback or quote request, or a survey. Forms that have their own signal don't also send `formCompleted`: sign-in (`loggedIn`), registration (`accountRegistered`), account settings (`accountUpdated`), search (`onSiteSearch`) and checkout (`order`). Fire only when the site confirms the submission succeeded: a thank-you page or success message, a successful submit response (through `ajaxListener`), or a dataLayer event the site pushes on success. Never fire on the submit click alone, because it also fires when validation fails. Older loaders have no entry for it; see "Adding a signal the loader doesn't have" above.
+  - **Acoustic Forms.** `formCompleted` is meant for forms that are not Acoustic Forms. Acoustic Forms already log their own signals, separately from the SDK, and the `formCompleted` schema is still expected to change. If the form is an Acoustic Form, tell the user both of those things and ask whether they really want `formCompleted` for it before building it.
+  - `formId` (required) identifies the form, not the submission: the form provider's ID for it, or the form element's `id` or `name`. It must stay the same on every page load and every page the form appears on, so don't use a framework-generated ID (e.g. React's `:r1:`). If the form has nothing stable, ask the user which value to use.
+  - `formProvider` (required) is free text, not an enum: the platform that hosts or processes the form, so a HubSpot form embedded on the site is `hubspot`, not `sdk`. Documented examples: `acoustic`, `google`, `meta`, `sdk`. The definition is deliberately open, so always ask the user which value to use for each form, and use the same value for the same provider everywhere on the site.
+  - `formName` (optional) is the human-readable name shown in the Activity Feed and behaviors, such as "Contact us". Use the form's visible heading when it has one; otherwise ask the user.
+  - `formUrl` (optional) is the URL of the page the form was on, without its query string, which on form pages can carry an email address or tokens (e.g. `url.split("?")[0]`). When success shows on a separate thank-you page, that is not the current page: store the form page's URL with `help.store` when the form is submitted, or use `document.referrer` if the thank-you page always follows the form page directly.
+  - `submissionId` (optional) is set only when the site or form provider returns one, e.g. in the submit response or on the confirmation page. Don't generate one: it exists to match the signal to the provider's own record of the submission.
+  - If the form collects an email address, ask the user before attaching it as `audience`. The typed value has to be captured before the form clears or the page changes, and the field must not be masked by the privacy rules in `configureSDK()`, which is user-owned code.
+  - `effect` is always `"positive"`.
 - **`pageView.pageGroup`** — leave as `null` initially; do not attempt to populate it until the customer has indicated what they want there.
 - **`productConfiguration`** — suppress the signal if `product.itemCount > 1`; with multiple products on the page there is no reliable way to know which product the user is configuring.
 - **`addToCart`** — use the `add_to_cart` dataLayer event as the preferred data source. The `ecommerce.currency` field is at the top level of the event, not inside `items`.
