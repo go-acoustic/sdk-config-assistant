@@ -242,10 +242,11 @@ reachable on 9222), but it isn't the mode they chose. Reconnect anyway.
 Confirm the MCP is running with the chosen mode's flag before calling `list_pages`:
 
 ```bash
-pgrep -fl "^npm exec chrome-devtools-mcp@latest" | grep -o -e "--autoConnect" -e "--browser-url=[^ ]*" | sort -u
+pgrep -fl "^npm exec chrome-devtools-mcp@latest" | grep -o -e "--autoConnect" -e "--browser-url=[^ ]*" -e "--categoryNetworkMocks" | sort -u
 ```
 
-Expect `--autoConnect` for default or `--browser-url=http://127.0.0.1:9222` for dedicated.
+Expect `--autoConnect` for default or `--browser-url=http://127.0.0.1:9222` for dedicated,
+plus `--categoryNetworkMocks` (it turns on the `mock_network` tools the skill uses).
 Other Claude sessions or plugins may run their own `chrome-devtools-mcp`, so both can appear.
 If the expected flag is missing, the reconnect hasn't happened yet.
 
@@ -338,7 +339,11 @@ they declined.
 
 ## Step 4 — Install & configure Tampermonkey (per-machine)
 
-Tampermonkey injects each site's `sdk-config.js`. It can't be detected via CDP, but
+Tampermonkey injects each site's `sdk-config.js`. For a site that already loads an SDK
+Config from its own URL, the skill can use a network mock instead (see "Choosing how to
+inject the SDK Config" in the skill), so a user who only works on such sites can skip this
+step. Tampermonkey is still needed for sites with no deployed SDK Config, and for testing in
+tabs the MCP doesn't control. It can't be detected via CDP, but
 its install folder can be checked on disk (extension ID `dhdgffkkebhmkfjojejmpbldmpobfkfo`)
 in the profile chosen in Step 1:
 

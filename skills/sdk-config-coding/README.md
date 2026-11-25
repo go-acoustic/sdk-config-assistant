@@ -121,7 +121,14 @@ A project from an earlier version keeps its sites in `sites/<hostname>/`. Claude
 
 Use a new or recent SDK Config that uses the `initLogSignal` function to implement signals. You can also ask Claude Code to set up the directories for you rather than doing it from the terminal.
 
-Then tell Claude which site to work on. It will read the loader, show you an implementation status summary for each signal, generate a Tampermonkey script for you to paste into the browser, and walk through signal implementation once injection is confirmed.
+Then tell Claude which site to work on. It will read the loader, show you an implementation status summary for each signal, set up injection of your local `sdk-config.js`, and walk through signal implementation once injection is confirmed.
+
+There are two ways to inject it:
+
+- **Tampermonkey** — Claude generates a userscript for you to paste into Tampermonkey. Works on any site and in every tab you open.
+- **Network mock** — when the site already loads an SDK Config from its own URL, Claude can tell Chrome to serve your local `sdk-config.js` in its place, in the tab Claude drives. No extension or userscript is needed, and the draft loads exactly where the deployed file does. The mock lasts until the MCP reconnects or the session ends. Claude can also block requests in that tab, for example the site's own SDK Config while you use Tampermonkey, or the collector so that test sessions don't reach the customer's Connect subscription.
+
+Network mocks need the `sdk-chrome-devtools` MCP to start with `--categoryNetworkMocks`. The plugin's launcher passes it. If the mock tools are missing after a plugin update, reconnect the MCP (`/mcp` → `sdk-chrome-devtools` → reconnect) or start a new session.
 
 ### Continuing from sdk-config-assistant
 

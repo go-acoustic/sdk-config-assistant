@@ -24,6 +24,11 @@
 # The mode is read at MCP startup — after changing it, reconnect via /mcp or
 # start a new session. The launcher has no plugin environment (it runs as a
 # user-scoped server), so it must not rely on CLAUDE_PLUGIN_ROOT/DATA.
+#
+# --categoryNetworkMocks turns on the mock_network and remove_network_mock
+# tools (off by default in chrome-devtools-mcp). The skill uses them to serve
+# the local sdk-config.js in place of a site's deployed SDK Config and to block
+# requests, per tab. See "Network mocks" in SKILL.md.
 
 set -uo pipefail
 
@@ -41,7 +46,7 @@ fi
 echo "[sdk-config-coding] chrome-devtools MCP: chromeMode=$mode (marker: ${state_file:-none})" >&2
 
 if [ "$mode" = "default" ]; then
-  exec npx chrome-devtools-mcp@latest --autoConnect
+  exec npx chrome-devtools-mcp@latest --autoConnect --categoryNetworkMocks
 else
-  exec npx chrome-devtools-mcp@latest --browser-url=http://127.0.0.1:9222
+  exec npx chrome-devtools-mcp@latest --browser-url=http://127.0.0.1:9222 --categoryNetworkMocks
 fi

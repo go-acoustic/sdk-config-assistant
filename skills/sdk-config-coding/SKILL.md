@@ -1,6 +1,6 @@
 ---
 name: sdk-config-coding
-description: Claude Code only (Desktop Code tab, terminal or IDE), never Claude Cowork. Hand-edit, debug and test the JavaScript enhance functions and triggers in an existing sdk-config-coding/<hostname>/sdk-config.js, live through Tampermonkey and the sdk-chrome-devtools MCP; continue an SDK Config handed off from SDK-config-assistant (a handoff/ folder or escalated signals); or prepare that SDK Config for production (fakeSignals, readiness). Also sets up, repairs or switches this skill's own browser tooling (dedicated or default Chrome profile, the sdk-chrome-devtools MCP, Tampermonkey) when asked or when its setup check needs it. Not for requests that start from a customer website or domain — generating, auditing, mapping or updating a signal configuration or initLogSignal(), onboarding a customer, mapping JSON, implementation or test plans — nor for installing Tampermonkey to test an SDK-config-assistant output. Those belong to SDK-config-assistant, even when initLogSignal or signal names are mentioned.
+description: Claude Code only (Desktop Code tab, terminal or IDE), never Claude Cowork. Hand-edit, debug and test the JavaScript enhance functions and triggers in an existing sdk-config-coding/<hostname>/sdk-config.js, live through Tampermonkey or a network mock and the sdk-chrome-devtools MCP; continue an SDK Config handed off from SDK-config-assistant (a handoff/ folder or escalated signals); or prepare that SDK Config for production (fakeSignals, readiness). Also sets up, repairs or switches this skill's own browser tooling (dedicated or default Chrome profile, the sdk-chrome-devtools MCP, Tampermonkey) when asked or when its setup check needs it. Not for requests that start from a customer website or domain — generating, auditing, mapping or updating a signal configuration or initLogSignal(), onboarding a customer, mapping JSON, implementation or test plans — nor for installing Tampermonkey to test an SDK-config-assistant output. Those belong to SDK-config-assistant, even when initLogSignal or signal names are mentioned.
 argument-hint: "[setup]"
 ---
 
@@ -168,7 +168,7 @@ When the user says "let's work on" or "let's continue" a site, or asks to start/
    - ⬜ not yet started (empty `enhance` or no triggers)
 
    Omit the `audience` utility signal (see "Signal names in handed-off SDK Configs"). For a handed-off site, list the handed-over signals first (those `notes.md` records as escalated or blocked at handoff, including signals from `blockers[]` that were never built), marked 🔺 handed over, with their reason codes or blocker summary — these are usually why the site was handed off. A handed-over signal whose `enhance` and triggers are now filled in is ✅ like any other.
-3. **Ask about SDK Config injection** — for an ongoing implementation, ask: "Does the Tampermonkey script need to be set up, or is it already installed?" For a new site, offer to walk through setup. Then follow the session start steps below.
+3. **Ask about SDK Config injection** — if `notes.md` records a deployed SDK Config URL, or the user says the site already loads one, offer a network mock first (see "Choosing how to inject the SDK Config"). Otherwise, for an ongoing implementation, ask: "Does the Tampermonkey script need to be set up, or is it already installed?" For a new site, offer to walk through setup. Then follow the session start steps below.
 4. All edits target `sdk-config-coding/<hostname>/sdk-config.js`, within `initLogSignal` only.
 5. If the project already has ESLint set up (an `eslint.config.mjs` exists at the project root — see "Linting" below), lint after every edit: `npx eslint sdk-config-coding/<hostname>/sdk-config.js --fix`. If it doesn't, skip linting — don't mention it unless the user asks.
 
@@ -316,21 +316,61 @@ When setting up injection (either for a new site, or when the user confirms it n
    - `dedicated`: run the port ownership check (above). `PORT_FREE` → launch Chrome on the dedicated profile (command above) — safe even if the user's regular Chrome is already running, since it's a separate process on a separate profile. `DEDICATED_UP` → carry on. Anything else → resolve it as the check describes before using the MCP, or it will drive the wrong browser.
    - `default`: call `list_pages`. If it fails, ask the user to open Chrome (and accept Chrome's prompt to allow the debugging connection), and check remote debugging is still enabled at `chrome://inspect/#remote-debugging`. Do not launch Chrome yourself.
 
-2. **Generate the Tampermonkey script** — fill in `${CLAUDE_PLUGIN_ROOT}/skills/sdk-config-coding/tools/tampermonkey-template.js` for the site (hostname, match pattern, and the `@require` path — replace `ABSOLUTE_PROJECT_PATH` with the real absolute path of the current project, obtained by running `pwd`, never guessed) and show it to the user. For a new site, ask them to paste it into Tampermonkey (Dashboard → + icon). For an ongoing site, the script is already installed — skip this step unless the user says otherwise.
+2. **Inject the SDK Config** — pick the method (see "Choosing how to inject the SDK Config" below).
+   - **Tampermonkey:** fill in `${CLAUDE_PLUGIN_ROOT}/skills/sdk-config-coding/tools/tampermonkey-template.js` for the site (hostname, match pattern, and the `@require` path — replace `ABSOLUTE_PROJECT_PATH` with the real absolute path of the current project, obtained by running `pwd`, never guessed) and show it to the user. For a new site, ask them to paste it into Tampermonkey (Dashboard → + icon). For an ongoing site, the script is already installed — skip this step unless the user says otherwise.
+   - **Network mock:** follow "Network mocks" below. It is set on the MCP's tab, so it is needed again in every new session or after an MCP reconnect.
 
-3. **Navigate to the site** and verify via `list_console_messages` that the SDK initialises (Type 2 LOAD message present, no errors). Confirm to the user that injection is working before proceeding.
+3. **Navigate to the site** and verify via `list_console_messages` that the SDK initialises (Type 2 LOAD message present, no errors). With a network mock, also confirm the mock was hit (step 5 of "Network mocks"). Confirm to the user that injection is working before proceeding.
 
-**Blocking an existing deployment:** Some sites already have their own SDK Config and the Acoustic Connect SDK deployed. The injected SDK Config's `initSDK()` has a `window.TLT` guard that skips the CDN fetch if the SDK is already present — so injection will still work. To test against a fully clean instance: block the site's own SDK Config and SDK URLs in Chrome DevTools (Network panel → right-click request → Block request URL) and reload.
+**Blocking an existing deployment:** Some sites already have their own SDK Config and the Acoustic Connect SDK deployed. A network mock replaces the site's SDK Config, so this only matters with Tampermonkey. The injected SDK Config's `initSDK()` has a `window.TLT` guard that skips the CDN fetch if the SDK is already present — so injection will still work. To test against a fully clean instance, block the site's own SDK Config URL on the MCP's tab (see "Blocking requests" below) and reload. In tabs the MCP doesn't control, the user can do the same in Chrome DevTools (Network panel → right-click request → Block request URL).
+
+### Choosing how to inject the SDK Config
+
+| | Tampermonkey | Network mock |
+|---|---|---|
+| Works when | Always, including sites with no SDK Config yet | The site already loads an SDK Config from its own URL |
+| Which tabs | Every tab in the Chrome profile that matches `@match`, including tabs the user opens | Only the tab the MCP set it on. The user can click through in that tab too, but tabs opened from it are not covered |
+| How long | Until the userscript is disabled | Until `remove_network_mock`, an MCP reconnect or the end of the session |
+| Site's own SDK Config | Still loads, alongside the draft | Replaced: the draft loads at the same point in the page load, from the same URL |
+| Setup | Tampermonkey installed, "Allow access to file URLs" on, a userscript per site | None beyond the MCP |
+
+Offer a network mock when the site already has a deployed SDK Config and the testing happens in the MCP's tab: it is quicker to set up, needs no extension (useful in `default` Chrome mode, where Tampermonkey would sit in the user's personal profile), and tests the draft exactly where it will be deployed. Use Tampermonkey when the site has no deployed SDK Config, when the SDK Config is inline in the page or inside a tag-manager container rather than at its own URL, or when the user will test journeys themselves in their own tabs over several sessions.
+
+Don't use both on the same site at once: in the mocked tab, the draft would load twice and signals could fire twice. Ask the user to switch the site's userscript off in the Tampermonkey dashboard while a mock is in use.
+
+### Network mocks
+
+The `sdk-chrome-devtools` MCP has two tools for this: `mock_network` and `remove_network_mock`. They exist only when the MCP starts with `--categoryNetworkMocks`, which the launcher passes. If they are missing, the MCP is running from an older launcher: Step 0 has already refreshed the copy in `~/.claude/sdk-config-coding/`, so ask the user to reconnect the MCP (`/mcp` → `sdk-chrome-devtools` → reconnect) or start a new session. Until then, use Tampermonkey.
+
+Mocks belong to one tab (`pageId`, from `list_pages`), stay in place across navigations and reloads, and must be set before the page loads. They are held by the MCP server, so a reconnect or a new session clears them. While a tab has any mock, its HTTP cache is off and every request is intercepted. Service workers can bypass mocks.
+
+**Serving the draft in place of the deployed SDK Config:**
+
+1. **Find the deployed SDK Config URL.** If `notes.md` records it, use that. Otherwise load a site page and call `list_network_requests` with `resourceTypes: ["script"]`. The SDK Config is the script that calls `initLogSignal` or configures `TLT`. Older Tealeaf deployments often bundle the SDK and the SDK Config in one file (for example `tealeaf.<site>.min.js`). To check a candidate, save its body with `get_network_request` (`reqid`, and `responseFilePath` set to a temporary file, since minified files are large) and search the file for `initLogSignal` or `TLT`. If it's still unclear, ask the user. If the SDK Config has no URL of its own (inline, or inside a tag-manager container), a mock can't replace it: use Tampermonkey.
+2. **Record it** in `notes.md` under "Deployed SDK Config URL", so later sessions can skip step 1.
+3. **Set the mock** with `mock_network`: `pageId` from `list_pages`, `route` the URL without its query string (a route with no query matches any query), `resourceType: "script"`, and `body` the absolute path of `sdk-config-coding/<folder>/sdk-config.js`, built from `pwd`, never guessed. Use `*` in the route only for a part that really changes, such as a version number in the path.
+4. **Reload** with `navigate_page`.
+5. **Check the mock was hit.** Call `mock_network` with only `pageId`: it lists the tab's mocks with hit counts and replacement errors. A hit count of 0 means the route didn't match: compare it with the URL in `list_network_requests`. If the site has a service worker, it may be serving the file itself; tell the user, and use Tampermonkey if it can't be worked around. Then check the console as in "Session start" step 3.
+
+`body` is re-read on every request, so after editing `sdk-config.js`, just reload; the mock doesn't need setting again. If the deployed file also held the SDK, the draft still works, because its `initSDK()` loads the SDK from the Acoustic CDN when `window.TLT` isn't there.
+
+**Blocking requests:** `mock_network` with `route`, `pageId` and `abort: true` blocks matching requests on that tab. Use it to:
+
+- Block the site's own SDK Config while testing through Tampermonkey (see "Blocking an existing deployment" above). Block the site's own SDK URL too only if it differs from the SDK URL the draft's `initSDK()` loads, or the draft can't load the SDK either.
+- Keep test traffic out of the customer's Connect subscription, when the draft posts to their production collector and the user doesn't want test sessions there. Ask the user before doing this. Take the collector URL from `configureSDK()` (read it, don't change it), use a route such as `https://<collector host>/*`, and leave out `resourceType` so every request type is blocked. Signal payloads and web events are still logged to the console, which is what signal testing reads. Every post fails, though: on the first run, check `list_console_messages` for SDK errors about failed posts and tell the user what you see.
+
+**Clean up** with `remove_network_mock` and `pageId` when testing ends or before moving to another site, and tell the user which mocks were removed. Mocks are also cleared when the MCP disconnects, so there is nothing to undo after a session ends.
 
 ### Chrome MCP (for inspection and signal verification)
 
-The Chrome MCP (`sdk-chrome-devtools`, registered by setup) controls the Chrome instance for the configured `chromeMode` — the dedicated profile or the user's default one — directly via CDP. Use it for all inspection and verification work — Tampermonkey handles injection, so there are no injection steps here.
+The Chrome MCP (`sdk-chrome-devtools`, registered by setup) controls the Chrome instance for the configured `chromeMode` — the dedicated profile or the user's default one — directly via CDP. Use it for all inspection and verification work. Injection is covered in "Session start" above (Tampermonkey or a network mock).
 
 Key capabilities:
 - **Navigate** — `navigate_page` to load a URL in the open browser tab
 - **Read console output** — `list_console_messages` captures all log/warn/error output including the signal payloads the SDK Config logs and the SDK's web events. This is the primary output channel during signal implementation.
 - **Inspect the DOM** — `evaluate_script` to query selectors, read element properties, and examine data sources. CDP runs through the DevTools Protocol and is exempt from page CSP restrictions, so arbitrary JavaScript can be executed on any site.
 - **Take snapshots** — `take_snapshot` for the accessibility tree, `take_screenshot` for a visual view
+- **Mock or block requests** — `mock_network` and `remove_network_mock`, per tab (see "Network mocks")
 
 **Identifying triggers with `eventLog`:** Set `eventLog: true` in the `initLogSignal` configuration to print all SDK web events to the console as they fire. Use `list_console_messages` to read these and identify the correct trigger attributes for each signal. This is the primary way to discover trigger properties — do it before writing triggers.
 
@@ -583,7 +623,7 @@ Run this when the user asks to finish, go live, or prepare the SDK Config for de
 
    Only change flags that exist in this loader. If one is missing, say so — don't add it. `fakeSignals: false` means signals are sent to Connect as real data, so confirm the user wants that and is not testing against a production account by accident.
 3. **Re-verify after the flag change.** Reload a page, confirm via `list_console_messages` that the SDK still initialises with no errors, and check one signal end to end.
-4. **Deployment file name.** If `notes.md` records an original SDK Config file name from a handoff, remind the user that the deployed file should normally use that name, not `sdk-config.js`.
+4. **Deployment file name.** If `notes.md` records an original SDK Config file name from a handoff, remind the user that the deployed file should normally use that name, not `sdk-config.js`. If it records a deployed SDK Config URL, name it: deploying means the customer replacing the file at that URL.
 5. **Readiness label.** Give exactly one of these, and record it with the date in `notes.md`. Use the same labels as `sdk-config-assistant` so the two skills' reports read consistently:
    - `Not ready` — a required signal or field is unresolved, or the SDK fails to initialise.
    - `Ready for staging` — code complete, but some signals have not been verified in the browser in this project.
